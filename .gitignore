@@ -1,0 +1,9 @@
+audit-current/
+qa/
+design-qa.md
+design-reference*
+reference-*
+*.log
+.DS_Store
+Thumbs.db
+

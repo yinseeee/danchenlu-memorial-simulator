@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="丹宸录：架空明清制度背景的奏折与朝局推理游戏。">
+  <title>丹宸录 · 大晟舆图</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="丹宸录首页"><span>宸</span><div><small>大晟 · 承熙朝</small><strong>丹宸录</strong></div></a>
+    <nav class="main-tabs" aria-label="御前案头">
+      <button data-view="desk">奏折</button><button class="active" data-view="map">舆图</button><button data-view="officials">官员</button><button data-view="factions">党派</button><button data-view="archive">案牍</button>
+    </nav>
+    <div class="date"><span>承熙十二年 · 三月初七</span><b>辰时</b></div>
+    <div class="court-stats"><span>威望 <b id="authorityValue">62</b></span><span>国帑 <b id="treasuryValue">54</b></span><span>民心 <b id="stabilityValue">58</b></span></div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="dispatch-panel">
+      <div class="panel-title"><div><small>通政司</small><h2>内阁收发 · 奏折匣</h2></div><b id="reviewCounter">0 / 5</b></div>
+      <div class="filters"><button class="active" data-filter="all">全部</button><button data-filter="formal">题本</button><button data-filter="secret">密折</button></div>
+      <label class="sort-select">按紧急程度 <select id="urgencySelect"><option>急件优先</option><option>按入递时辰</option></select></label>
+      <div class="memorial-list" id="memorialList"></div>
+      <button class="secondary full" id="reviewedToggle">查看已阅奏折</button>
+      <footer><span>今日待办</span><b id="pendingCount">5 件</b><small>密折须亲启，题本附内阁票拟</small></footer>
+    </aside>
+
+    <section class="content-area">
+      <section class="view active" id="mapView">
+        <div class="map-header"><div><small>动态流向</small><h1>大晟舆图</h1><p>奏折从何处来，利益向何处去</p></div><div class="map-tools"><button id="routeToggle" class="active">驿路</button><button id="heatToggle">案情热度</button><button id="resetMap">重置</button></div></div>
+        <div class="map-frame">
+          <img src="assets/dasheng-atlas.png" alt="大晟架空十道舆图" class="atlas">
+          <svg class="routes" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M535 275 C470 260 420 310 370 350 S275 380 225 315"/><path d="M535 275 C600 290 655 355 720 365 S820 345 875 300"/><path d="M535 275 C520 350 545 420 565 500 S650 540 720 555"/><path d="M535 275 C530 205 605 170 690 135"/><path d="M535 275 C410 240 335 225 250 175"/>
+          </svg>
+          <div class="capital-node" style="--x:53.5%;--y:43%"><i></i><span>京师</span></div>
+          <button class="map-node active" data-case="river" style="--x:63%;--y:48%"><i>重</i><span>河间府</span><small>河工亏空案</small></button>
+          <button class="map-node" data-case="frontier" style="--x:27%;--y:31%"><i>急</i><span>凉州</span><small>西陲军饷案</small></button>
+          <button class="map-node" data-case="salt" style="--x:72%;--y:64%"><i>中</i><span>扬州</span><small>盐引舞弊案</small></button>
+          <div class="province-labels" aria-hidden="true"><span style="--x:22%;--y:46%">陇右道</span><span style="--x:37%;--y:28%">河西道</span><span style="--x:48%;--y:56%">中州道</span><span style="--x:66%;--y:31%">山东道</span><span style="--x:79%;--y:47%">江东道</span><span style="--x:40%;--y:73%">湖广道</span><span style="--x:61%;--y:78%">岭南道</span></div>
+          <div class="flow-ranking"><b>奏折流向</b><div><span>流入京师</span><em>江南 47</em><i style="--w:86%"></i></div><div><span>外放钦差</span><em>直隶 31</em><i style="--w:64%"></i></div><div><span>驳回重拟</span><em>西陲 18</em><i style="--w:42%"></i></div></div>
+          <div class="map-legend"><b>驿传图例</b><span><i class="route-key"></i>奏折递送</span><span><i class="node-key high"></i>重大案情</span><span><i class="node-key mid"></i>待核案情</span></div>
+          <div class="map-scale">大晟十道 · 虚构疆域</div>
+        </div>
+        <div class="timeline"><button>◂</button><span>承熙十一年 冬</span><b>承熙十二年 春 · 本旬报案 28 起</b><span>承熙十二年 夏</span><button>▸</button></div>
+      </section>
+
+      <section class="view" id="deskView">
+        <div class="desk-toolbar"><button class="back-map">返回舆图</button><div><small id="documentKind">正式题本 · 通政司验封</small><h1 id="memorialTitle"></h1></div><span class="case-rank">重案<small>民怨沸腾</small></span><button id="closeMemorial">合折</button></div>
+        <div class="case-desk-top">
+          <aside class="case-map-card"><div class="case-map-filters"><select><option>大晟全图</option></select><label><input type="checkbox" checked>河道</label><label><input type="checkbox" checked>驿站</label><label><input type="checkbox" checked>关津</label></div><div class="case-map-canvas"><img src="assets/dasheng-atlas.png" alt="案件涉及地域"><div class="case-route"></div><span class="route-pin p1">直隶</span><span class="route-pin p2">河南</span><span class="route-pin p3">江南</span><span class="route-pin p4">山东</span></div><div class="route-summary"><b>当前段落关联地</b><span id="routeSummary">河间府 → 京师（驿程 6 日）</span></div></aside>
+          <div class="document-stage">
+            <article class="document formal open" id="document"><div class="formal-cover"><span id="coverType">题本</span><b id="coverTitle"></b></div><div class="secret-seal"><b>御前亲启</b></div><div class="paper-folds" id="paperFolds"></div><div class="vermilion" id="vermilionWriting"></div></article><button class="open-document" id="openMemorial">启封开折</button>
+          </div>
+          <aside class="cabinet-reply" id="cabinetReply"><h3>内阁批答</h3><div><p id="cabinetReplyText"></p><small>承熙十二年<br>三月初七日</small><b>内阁之印</b></div></aside>
+        </div>
+        <div class="case-desk-bottom"><section class="case-thread"><header><h2>案情脉络</h2><label>排序：<select><option>时间</option></select></label><label>显示：<select><option>全部</option></select></label></header><div class="thread-flow" id="threadFlow"></div></section><aside class="intel-drawer" id="intelDrawer"><h2>情报抽屉</h2><div id="deskIntel"></div></aside></div>
+        <div class="review-bar"><div class="quick-replies"><button>阅</button><button>知道了</button><button>核议</button><button>督查</button></div><textarea id="customReply" maxlength="80" placeholder="御笔亲书朱批……"></textarea><button id="markDoubt">留中存疑</button><button class="primary" id="submitVerdict" disabled>落朱批</button></div>
+      </section>
+
+      <section class="view intel-view" id="officialsView">
+        <header class="network-header"><div><small>仕途流场</small><h1>百官网络</h1><p>从籍贯、科第与任官之路辨认利益同盟</p></div><div class="network-controls"><button class="active" data-relation="all">全部</button><button data-relation="patron">荐举</button><button data-relation="cohort">同年</button><button data-relation="kin">姻亲</button><button data-relation="hostile">攻讦</button><input id="officialSearch" placeholder="检索官员"></div></header>
+        <div class="network-layout"><aside class="network-legend"><h3>关系图例</h3><span><i class="patron"></i>荐举 / 门生</span><span><i class="cohort"></i>同年 / 同乡</span><span><i class="kin"></i>姻亲 / 宗族</span><span><i class="hostile"></i>弹劾 / 攻讦</span><hr><b>党派势力</b><span>清流 42%</span><span>务实 28%</span><span>勋贵 17%</span><span>内廷 13%</span></aside><div class="network-board" id="networkBoard"></div><aside class="official-dossier" id="officialDossier"></aside></div>
+      </section>
+      <section class="view intel-view" id="factionsView"><header><small>朝局暗流</small><h1>党派谱系</h1><p>党派并非固定标签，官员会因案件与圣意改变依附</p></header><div class="faction-board" id="factionBoard"></div></section>
+      <section class="view intel-view" id="archiveView"><header><small>内廷案牍</small><h1>前情归档</h1><p>旧案、旧批与前后矛盾皆可追溯</p></header><div class="archive-board" id="archiveBoard"></div></section>
+    </section>
+
+    <aside class="intelligence-panel">
+      <section class="province-card"><span id="caseSeverity">案情密度：高</span><h2 id="provinceName">江南道</h2><p id="provinceMeta">8 府 · 52 州 · 201 县</p><b id="caseTrend">本年上报案件 47 起 ↑23%</b></section>
+      <section><div class="section-heading"><h3>主要案件</h3><button id="openCase">进入案牍</button></div><div id="caseList"></div></section>
+      <section><div class="section-heading"><h3>相关官员</h3><button data-view-jump="officials">查看关系</button></div><div id="officialList"></div></section>
+      <section><div class="section-heading"><h3>党派影响</h3><button data-view-jump="factions">查看详情</button></div><div class="faction-meter" id="factionMeter"></div></section>
+      <section><h3>证据档案</h3><div class="evidence-counts"><span>矛盾报告 <b id="conflictCount">2</b></span><span>证人供词 <b>3</b></span><span>票拟照册 <b>4</b></span><span>密报文书 <b>1</b></span></div></section>
+    </aside>
+  </main>
+
+  <dialog id="summaryDialog"><h2>本日封匣</h2><p id="summaryText"></p><button id="nextDay">翌日再览</button></dialog>
+  <div class="toast" id="toast"></div>
+  <script src="game.js"></script><script src="atlas-game.js"></script>
+</body>
+</html>
