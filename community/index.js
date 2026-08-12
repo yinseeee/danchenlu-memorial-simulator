@@ -90,6 +90,11 @@ let initialized = false;
 let bodyOverflowBefore = '';
 let selectedOfficialIndex = 0;
 let networkMode = 'officials';
+let dragState = null;
+let panelResizeTimer = 0;
+
+const MOBILE_LAYOUT = '(max-width: 820px)';
+const PANEL_EDGE_GAP = 10;
 
 function context() {
   return globalThis.SillyTavern?.getContext?.();
@@ -267,6 +272,7 @@ function closePanel() {
 
 function bindPanelEvents() {
   const root = document.getElementById('danchenlu-root');
+  bindPanelDrag(root);
   root.addEventListener('click', async event => {
     const button = event.target.closest('button');
     if (!button || !root.contains(button)) return;
@@ -308,6 +314,89 @@ function bindPanelEvents() {
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && !root.classList.contains('dcl-hidden')) closePanel();
   });
+}
+
+function bindPanelDrag(root) {
+  const app = root.querySelector('.dcl-app');
+  const handle = root.querySelector('.dcl-topbar');
+  if (!app || !handle) return;
+
+  const isInteractive = target => target instanceof Element
+    && Boolean(target.closest('button, a, input, textarea, select, [contenteditable="true"]'));
+
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || window.matchMedia(MOBILE_LAYOUT).matches || isInteractive(event.target)) return;
+
+    const rect = app.getBoundingClientRect();
+    app.style.left = `${rect.left}px`;
+    app.style.top = `${rect.top}px`;
+    app.style.width = `${rect.width}px`;
+    app.style.height = `${rect.height}px`;
+    app.style.right = 'auto';
+    app.style.bottom = 'auto';
+    app.style.transform = 'none';
+    app.classList.add('dcl-positioned', 'dcl-dragging');
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+    };
+    handle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+
+  handle.addEventListener('pointermove', event => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const rect = app.getBoundingClientRect();
+    const maxLeft = Math.max(PANEL_EDGE_GAP, window.innerWidth - rect.width - PANEL_EDGE_GAP);
+    const maxTop = Math.max(PANEL_EDGE_GAP, window.innerHeight - rect.height - PANEL_EDGE_GAP);
+    app.style.left = `${Math.max(PANEL_EDGE_GAP, Math.min(maxLeft, dragState.left + event.clientX - dragState.startX))}px`;
+    app.style.top = `${Math.max(PANEL_EDGE_GAP, Math.min(maxTop, dragState.top + event.clientY - dragState.startY))}px`;
+  });
+
+  const finishDrag = event => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    handle.releasePointerCapture?.(event.pointerId);
+    dragState = null;
+    app.classList.remove('dcl-dragging');
+  };
+  handle.addEventListener('pointerup', finishDrag);
+  handle.addEventListener('pointercancel', finishDrag);
+
+  handle.addEventListener('dblclick', event => {
+    if (window.matchMedia(MOBILE_LAYOUT).matches || isInteractive(event.target)) return;
+    resetPanelPosition(app);
+  });
+
+  window.addEventListener('resize', () => {
+    window.clearTimeout(panelResizeTimer);
+    panelResizeTimer = window.setTimeout(() => {
+      if (window.matchMedia(MOBILE_LAYOUT).matches) resetPanelPosition(app);
+      else clampPanelPosition(app);
+    }, 80);
+  });
+}
+
+function resetPanelPosition(app = document.querySelector('#danchenlu-root .dcl-app')) {
+  if (!app) return;
+  dragState = null;
+  app.classList.remove('dcl-positioned', 'dcl-dragging');
+  ['left', 'top', 'right', 'bottom', 'width', 'height', 'transform'].forEach(property => app.style.removeProperty(property));
+}
+
+function clampPanelPosition(app) {
+  if (!app?.classList.contains('dcl-positioned')) return;
+  const rect = app.getBoundingClientRect();
+  const width = Math.min(rect.width, Math.max(320, window.innerWidth - PANEL_EDGE_GAP * 2));
+  const height = Math.min(rect.height, Math.max(360, window.innerHeight - PANEL_EDGE_GAP * 2));
+  const left = Math.max(PANEL_EDGE_GAP, Math.min(window.innerWidth - width - PANEL_EDGE_GAP, rect.left));
+  const top = Math.max(PANEL_EDGE_GAP, Math.min(window.innerHeight - height - PANEL_EDGE_GAP, rect.top));
+  app.style.width = `${width}px`;
+  app.style.height = `${height}px`;
+  app.style.left = `${left}px`;
+  app.style.top = `${top}px`;
 }
 
 function switchView(view) {

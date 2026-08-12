@@ -67,7 +67,12 @@
 
 #danchenlu-root .dcl-app {
   position: absolute;
-  inset: clamp(8px, 1.6vw, 24px);
+  left: 50%;
+  top: 50%;
+  width: calc(100vw - clamp(16px, 3.2vw, 48px));
+  height: calc(100dvh - clamp(16px, 3.2vw, 48px));
+  max-width: 1500px;
+  max-height: 920px;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -76,12 +81,17 @@
   border-radius: 10px;
   background: var(--dcl-night) url("assets/desk-indigo.webp") center / cover;
   box-shadow: 0 30px 90px #000, inset 0 0 80px #0007;
+  transform: translate(-50%, -50%);
   animation: dcl-arrive .35s cubic-bezier(.18,.85,.24,1);
 }
 
 @keyframes dcl-arrive {
-  from { opacity: 0; transform: translateY(16px) scale(.985); }
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 16px)) scale(.985); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
 }
+
+#danchenlu-root .dcl-app.dcl-positioned { animation: none; }
+#danchenlu-root .dcl-app.dcl-dragging { box-shadow: 0 38px 110px #000, 0 0 0 1px #b58b4c, inset 0 0 80px #0007; }
 
 #danchenlu-root .dcl-topbar {
   min-height: 76px;
@@ -94,7 +104,25 @@
   box-shadow: 0 10px 40px #0009;
   position: relative;
   z-index: 20;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
+
+#danchenlu-root .dcl-app.dcl-dragging .dcl-topbar { cursor: grabbing; }
+#danchenlu-root .dcl-topbar::after {
+  content: "••••••";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  color: #8d764a99;
+  font: 9px/1 sans-serif;
+  letter-spacing: 3px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+#danchenlu-root .dcl-topbar button,
+#danchenlu-root .dcl-topbar input { cursor: pointer; }
 
 #danchenlu-root .dcl-brand {
   display: flex;
@@ -512,50 +540,172 @@
   #danchenlu-launcher {
     width: 48px;
     height: 50px;
-    top: calc(100dvh - 72px);
-    bottom: auto;
+    top: auto;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px));
   }
-  #danchenlu-root .dcl-app { inset: 0; border-radius: 0; }
-  #danchenlu-root .dcl-topbar { min-height: 105px; grid-template-columns: 1fr auto; padding: 8px; }
-  #danchenlu-root .dcl-brand strong { font-size: 21px; }
-  #danchenlu-root .dcl-stats { justify-content: end; }
-  #danchenlu-root .dcl-stats span { width: 48px; height: 48px; }
-  #danchenlu-root .dcl-close { grid-column: 2; grid-row: 1; justify-self: end; margin-right: 2px; }
-  #danchenlu-root .dcl-stats { grid-column: 1 / -1; grid-row: 2; justify-content: center; padding: 3px; }
-  #danchenlu-root .dcl-tabs { position: absolute; left: 0; right: 0; bottom: -46px; height: 46px; overflow-x: auto; background: #090f13; }
-  #danchenlu-root .dcl-tabs button { min-width: 72px; }
-  #danchenlu-root .dcl-shell { display: block; padding-top: 46px; overflow: auto; }
-  #danchenlu-root .dcl-dispatch { height: 170px; border-right: 0; border-bottom: 1px solid #4a3e2b; }
+  #danchenlu-root .dcl-app {
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    transform: none;
+    animation: none;
+  }
+  #danchenlu-root .dcl-topbar {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    grid-template-rows: 58px 44px 44px;
+    padding: env(safe-area-inset-top) 8px 0;
+    cursor: default;
+    touch-action: auto;
+  }
+  #danchenlu-root .dcl-topbar::after { display: none; }
+  #danchenlu-root .dcl-brand { grid-column: 1; grid-row: 1; min-width: 0; }
+  #danchenlu-root .dcl-brand > span { width: 38px; height: 42px; font-size: 21px; }
+  #danchenlu-root .dcl-brand small { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  #danchenlu-root .dcl-brand strong { font-size: 20px; letter-spacing: 5px; }
+  #danchenlu-root .dcl-close { grid-column: 2; grid-row: 1; justify-self: end; }
+  #danchenlu-root .dcl-stats {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: center;
+    gap: 8px;
+    padding: 3px;
+  }
+  #danchenlu-root .dcl-stats span { width: 76px; height: 34px; grid-template-columns: auto auto; gap: 5px; border-radius: 4px; }
+  #danchenlu-root .dcl-stats i { font-size: 10px; }
+  #danchenlu-root .dcl-tabs {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+    height: 44px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    background: #090f13;
+    scrollbar-width: none;
+  }
+  #danchenlu-root .dcl-tabs::-webkit-scrollbar { display: none; }
+  #danchenlu-root .dcl-tabs button { flex: 1 0 70px; min-width: 70px; }
+  #danchenlu-root .dcl-shell { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  #danchenlu-root .dcl-dispatch {
+    flex: 0 0 112px;
+    height: auto;
+    overflow: hidden;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid #4a3e2b;
+  }
   #danchenlu-root .dcl-panel-title, #danchenlu-root .dcl-filters, #danchenlu-root .dcl-dispatch footer { display: none; }
-  #danchenlu-root .dcl-memorial-list { display: flex; overflow-x: auto; }
-  #danchenlu-root .dcl-memorial-card { flex: 0 0 190px; min-height: 105px; }
-  #danchenlu-root .dcl-content { height: calc(100% - 170px); min-height: 520px; }
-  #danchenlu-root .dcl-map-header { min-height: 82px; }
+  #danchenlu-root .dcl-memorial-list { height: 100%; display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; }
+  #danchenlu-root .dcl-memorial-card { flex: 0 0 176px; min-height: 0; height: 94px; grid-template-columns: 42px 1fr; padding: 7px; }
+  #danchenlu-root .dcl-memorial-copy strong { margin: 1px 0 5px; font-size: 13px; }
+  #danchenlu-root .dcl-content { flex: 1; width: 100%; height: auto; min-height: 0; }
+  #danchenlu-root .dcl-map-header { min-height: 68px; flex: 0 0 auto; padding: 7px 10px; }
+  #danchenlu-root .dcl-map-header h1, #danchenlu-root .dcl-intel-view h1 { font-size: 20px; }
+  #danchenlu-root .dcl-map-header p { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   #danchenlu-root .dcl-map-tools { display: none; }
-  #danchenlu-root .dcl-map-frame { min-height: 420px; overflow-x: auto; }
-  #danchenlu-root .dcl-atlas { min-width: 760px; }
-  #danchenlu-root .dcl-map-node, #danchenlu-root .dcl-capital, #danchenlu-root .dcl-province-labels span { transform: translate(-50%, -50%) translateX(160px); }
+  #danchenlu-root .dcl-map-frame {
+    flex: 0 1 auto;
+    width: calc(100% - 16px);
+    max-height: calc(100% - 76px);
+    min-height: 0;
+    aspect-ratio: 1000 / 640;
+    margin: 0 8px 8px;
+    overflow: hidden;
+  }
+  #danchenlu-root .dcl-atlas { min-width: 0; object-fit: fill; }
+  #danchenlu-root .dcl-map-node i { width: 22px; height: 22px; font-size: 11px; }
+  #danchenlu-root .dcl-map-node span, #danchenlu-root .dcl-capital span { margin-top: 2px; padding: 2px 4px; font-size: 9px; }
+  #danchenlu-root .dcl-province-labels span { font-size: 9px; }
+  #danchenlu-root .dcl-flow-ranking, #danchenlu-root .dcl-map-legend, #danchenlu-root .dcl-map-scale { display: none; }
   #danchenlu-root .dcl-timeline { display: none; }
-  #danchenlu-root .dcl-desk-toolbar { min-height: 64px; }
-  #danchenlu-root .dcl-document-stage { min-height: 390px; overflow-x: auto; place-items: stretch; padding: 0; }
-  #danchenlu-root .dcl-document { width: 840px; height: 370px; transform-origin: left center; }
-  #danchenlu-root .dcl-document.closed { transform: rotateX(72deg) scale(.66); }
+  #danchenlu-root .dcl-desk-toolbar { min-height: 54px; flex: 0 0 54px; gap: 7px; padding: 5px 8px; }
+  #danchenlu-root .dcl-desk-toolbar button { padding: 7px 8px; white-space: nowrap; }
+  #danchenlu-root .dcl-desk-toolbar h1 { overflow: hidden; margin: 1px 0; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+  #danchenlu-root .dcl-document-stage { flex: 1; min-height: 118px; overflow: hidden; place-items: stretch; padding: 7px; }
+  #danchenlu-root .dcl-document { width: 100%; height: 100%; min-height: 0; transform-origin: center; }
+  #danchenlu-root .dcl-document.closed { transform: scale(.9); }
+  #danchenlu-root .dcl-formal-cover, #danchenlu-root .dcl-secret-cover { display: none !important; }
+  #danchenlu-root .dcl-paper-folds,
+  #danchenlu-root .dcl-document.secret .dcl-paper-folds {
+    inset: 0;
+    display: block;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid #a7936e;
+    background: var(--dcl-paper) url("assets/xuan-paper.webp") center / cover;
+    box-shadow: inset 0 0 24px #5a432833;
+  }
+  #danchenlu-root .dcl-paper-panel {
+    min-height: 0;
+    overflow: visible;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid #aa966e;
+    background: transparent;
+    box-shadow: none;
+    writing-mode: horizontal-tb;
+    line-height: 1.65;
+    letter-spacing: 1px;
+    animation: none;
+  }
+  #danchenlu-root .dcl-paper-panel:last-child { border-bottom: 0; }
+  #danchenlu-root .dcl-paper-panel h3 { margin: 0 0 4px; font-size: 15px; }
+  #danchenlu-root .dcl-paper-panel p { font-size: 13px; }
+  #danchenlu-root .dcl-paper-panel aside { margin: 7px 0 0; padding: 5px 0; border: 0; border-top: 1px solid #9b7a4e; }
+  #danchenlu-root .dcl-vermilion { right: 12px; top: auto; bottom: 10px; max-width: 72%; max-height: 46%; writing-mode: horizontal-tb; font-size: 18px; line-height: 1.35; letter-spacing: 2px; }
+  #danchenlu-root .dcl-vermilion-seal { right: 8px; bottom: 8px; width: 38px; height: 38px; font-size: 11px; }
   #danchenlu-root .dcl-writing-tools { display: none; }
-  #danchenlu-root .dcl-review-bar { grid-template-columns: 1fr 1fr; }
+  #danchenlu-root .dcl-review-bar { flex: 0 0 auto; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 7px 8px max(7px, env(safe-area-inset-bottom)); }
   #danchenlu-root .dcl-quick-replies { grid-column: 1 / -1; overflow-x: auto; }
-  #danchenlu-root #dcl-custom-reply { grid-column: 1 / -1; }
-  #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { height: 50px; }
+  #danchenlu-root .dcl-quick-replies button { flex: 1 0 60px; padding: 7px 9px; }
+  #danchenlu-root #dcl-custom-reply { grid-column: 1 / -1; height: 48px; }
+  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { height: 42px; min-width: 0; padding: 0 5px; font-size: 12px; }
   #danchenlu-root .dcl-summary-item { grid-template-columns: 28px minmax(0, 1fr); }
   #danchenlu-root .dcl-summary-item em { grid-column: 2; }
-  #danchenlu-root .dcl-network-header { align-items: flex-start; }
-  #danchenlu-root .dcl-network-controls { display: none; }
-  #danchenlu-root .dcl-network-layout { grid-template-columns: 1fr; min-height: 560px; }
+  #danchenlu-root .dcl-intel-view { padding: 10px; overflow: auto; }
+  #danchenlu-root .dcl-intel-view > header { flex: 0 0 auto; min-height: 0; margin-bottom: 10px; }
+  #danchenlu-root .dcl-network-header { display: block; }
+  #danchenlu-root .dcl-network-header p { font-size: 11px; }
+  #danchenlu-root .dcl-network-controls { margin-top: 8px; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; }
+  #danchenlu-root .dcl-network-controls button { flex: 0 0 auto; }
+  #danchenlu-root .dcl-network-controls input { flex: 0 0 112px; }
+  #danchenlu-root .dcl-network-layout { flex: none; display: flex; flex-direction: column; min-height: 0; }
   #danchenlu-root .dcl-network-legend { display: none; }
-  #danchenlu-root .dcl-network-board { min-height: 470px; border: 0; }
-  #danchenlu-root .dcl-official-dossier { max-height: 320px; }
+  #danchenlu-root .dcl-network-board { flex: 0 0 430px; min-height: 430px; border: 0; border-bottom: 1px solid #4a3c2b; }
+  #danchenlu-root .dcl-official-dossier { max-height: none; }
   #danchenlu-root .dcl-faction-board,
   #danchenlu-root .dcl-archive-board { grid-template-columns: 1fr; }
   #danchenlu-root .dcl-faction-column { min-height: 220px; }
+  #danchenlu-root #dcl-summary-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); margin: auto; padding: 16px; }
+  #danchenlu-root #dcl-summary-dialog footer { position: sticky; bottom: -16px; padding: 9px 0 calc(9px + env(safe-area-inset-bottom)); background: #e0d0a9ee; }
+}
+
+@media (max-width: 820px) and (max-height: 560px) {
+  #danchenlu-root .dcl-topbar { grid-template-rows: 50px 42px; }
+  #danchenlu-root .dcl-stats { display: none; }
+  #danchenlu-root .dcl-tabs { grid-row: 2; height: 42px; }
+  #danchenlu-root .dcl-dispatch { flex-basis: 88px; }
+  #danchenlu-root .dcl-memorial-card { height: 70px; }
+  #danchenlu-root .dcl-document-stage { min-height: 90px; }
+  #danchenlu-root .dcl-review-bar { grid-template-columns: minmax(180px, 1fr) repeat(3, auto); }
+  #danchenlu-root .dcl-quick-replies { display: none; }
+  #danchenlu-root #dcl-custom-reply { grid-column: 1; height: 42px; }
+  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { padding: 0 10px; }
+}
+
+@media (max-width: 380px) {
+  #danchenlu-root .dcl-brand small { display: none; }
+  #danchenlu-root .dcl-tabs button { flex-basis: 66px; min-width: 66px; }
+  #danchenlu-root .dcl-stats span { width: 70px; }
+  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { font-size: 11px; }
+  #danchenlu-root #dcl-summary-dialog footer { flex-direction: column-reverse; }
+  #danchenlu-root #dcl-summary-dialog footer button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
