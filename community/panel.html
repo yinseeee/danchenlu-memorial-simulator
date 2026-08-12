@@ -1,0 +1,103 @@
+<div id="danchenlu-root" class="dcl-hidden" aria-hidden="true">
+  <button class="dcl-scrim" data-action="close" aria-label="关闭丹宸录"></button>
+  <section class="dcl-app" role="dialog" aria-modal="true" aria-label="丹宸录奏折模拟器">
+    <header class="dcl-topbar">
+      <button class="dcl-brand" data-view="map" aria-label="返回大晟舆图">
+        <span>宸</span><div><small>大晟 · 承熙朝</small><strong>丹宸录</strong></div>
+      </button>
+      <nav class="dcl-tabs" aria-label="御前案头">
+        <button data-view="desk">奏折</button>
+        <button class="active" data-view="map">舆图</button>
+        <button data-view="officials">官员</button>
+        <button data-view="factions">党派</button>
+        <button data-view="archive">案牍</button>
+      </nav>
+      <div class="dcl-date"><span id="dcl-date-label">承熙十二年 · 三月初七</span><b id="dcl-day-label">第壹日</b></div>
+      <div class="dcl-stats" aria-label="朝局数值">
+        <span><i>威望</i><b id="dcl-authority">62</b></span>
+        <span><i>国帑</i><b id="dcl-treasury">54</b></span>
+        <span><i>民心</i><b id="dcl-stability">58</b></span>
+      </div>
+      <button class="dcl-close" data-action="close" aria-label="关闭">×</button>
+    </header>
+
+    <main class="dcl-shell">
+      <aside class="dcl-dispatch">
+        <div class="dcl-panel-title"><div><small>通政司</small><h2>内阁收发 · 奏折匣</h2></div><b id="dcl-review-counter">0 / 5</b></div>
+        <div class="dcl-filters"><button class="active" data-filter="all">全部</button><button data-filter="formal">题本</button><button data-filter="secret">密折</button></div>
+        <div class="dcl-memorial-list" id="dcl-memorial-list"></div>
+        <footer><span>今日待办</span><b id="dcl-pending-count">5 件</b><small>密折须亲启，题本附内阁票拟</small></footer>
+      </aside>
+
+      <section class="dcl-content">
+        <section class="dcl-view active" id="dcl-map-view">
+          <div class="dcl-map-header"><div><small>动态流向</small><h1>大晟舆图</h1><p>奏折从何处来，利益向何处去</p></div><div class="dcl-map-tools"><button class="active" data-action="routes">驿路</button><button data-action="heat">案情热度</button><button data-action="reset-map">重置</button></div></div>
+          <div class="dcl-map-frame" id="dcl-map-frame">
+            <img src="" alt="大晟架空十道舆图" class="dcl-atlas" data-asset="dasheng-atlas.png">
+            <svg class="dcl-routes" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M535 275 C470 260 420 310 370 350 S275 380 225 315"/><path d="M535 275 C600 290 655 355 720 365 S820 345 875 300"/><path d="M535 275 C520 350 545 420 565 500 S650 540 720 555"/><path d="M535 275 C530 205 605 170 690 135"/><path d="M535 275 C410 240 335 225 250 175"/>
+            </svg>
+            <div class="dcl-capital" style="--x:53.5%;--y:43%"><i></i><span>京师</span></div>
+            <button class="dcl-map-node active" data-case="river" style="--x:63%;--y:48%"><i>重</i><span>河间府</span><small>河工亏空案</small></button>
+            <button class="dcl-map-node" data-case="frontier" style="--x:27%;--y:31%"><i>急</i><span>凉州</span><small>西陲军饷案</small></button>
+            <button class="dcl-map-node" data-case="salt" style="--x:72%;--y:64%"><i>中</i><span>扬州</span><small>盐引舞弊案</small></button>
+            <div class="dcl-province-labels" aria-hidden="true"><span style="--x:22%;--y:46%">陇右道</span><span style="--x:37%;--y:28%">河西道</span><span style="--x:48%;--y:56%">中州道</span><span style="--x:66%;--y:31%">山东道</span><span style="--x:79%;--y:47%">江东道</span><span style="--x:40%;--y:73%">湖广道</span><span style="--x:61%;--y:78%">岭南道</span></div>
+            <div class="dcl-flow-ranking"><b>奏折流向</b><div><span>流入京师</span><em>江南 47</em><i style="--w:86%"></i></div><div><span>外放钦差</span><em>直隶 31</em><i style="--w:64%"></i></div><div><span>驳回重拟</span><em>西陲 18</em><i style="--w:42%"></i></div></div>
+            <div class="dcl-map-legend"><b>驿传图例</b><span><i class="route"></i>奏折递送</span><span><i class="node"></i>重大案情</span></div>
+            <div class="dcl-map-scale">大晟十道 · 虚构疆域</div>
+          </div>
+          <div class="dcl-timeline"><span>承熙十一年 冬</span><b id="dcl-timeline-current">承熙十二年 春 · 本旬报案 28 起</b><span>承熙十二年 夏</span></div>
+        </section>
+
+        <section class="dcl-view" id="dcl-desk-view">
+          <div class="dcl-desk-toolbar"><button data-view="map">返回舆图</button><div><small id="dcl-document-kind"></small><h1 id="dcl-memorial-title"></h1></div><button data-action="toggle-fold" id="dcl-fold-button">合折</button></div>
+          <div class="dcl-document-stage">
+            <article class="dcl-document formal open" id="dcl-document">
+              <div class="dcl-formal-cover"><span id="dcl-cover-type">题本</span><b id="dcl-cover-title"></b><i></i></div>
+              <div class="dcl-secret-cover"><i></i><b>御前亲启</b></div>
+              <div class="dcl-paper-folds" id="dcl-paper-folds"></div>
+              <div class="dcl-vermilion" id="dcl-vermilion"></div>
+              <div class="dcl-vermilion-seal" id="dcl-vermilion-seal">朱批</div>
+            </article>
+            <button class="dcl-open-document" data-action="toggle-fold">启封开折</button>
+          </div>
+          <div class="dcl-writing-tools" aria-hidden="true"></div>
+          <div class="dcl-review-bar">
+            <div class="dcl-quick-replies"><button data-reply="阅">阅</button><button data-reply="知道了">知道了</button><button data-reply="核议">核议</button><button data-reply="督查">督查</button></div>
+            <textarea id="dcl-custom-reply" maxlength="80" placeholder="御笔亲书朱批……"></textarea>
+            <button data-action="doubt" id="dcl-doubt-button">留中存疑</button>
+            <button data-action="summary" id="dcl-summary-open">御批汇总</button>
+            <button class="dcl-primary" data-action="submit" id="dcl-submit" disabled>暂存朱批</button>
+          </div>
+        </section>
+
+        <section class="dcl-view dcl-intel-view" id="dcl-officials-view">
+          <header class="dcl-network-header"><div><small>仕途与内宅</small><h1>百官网络</h1><p>官场关系之外，婚姻、嫁资、家书与内宅账目也会改变案情</p></div><div class="dcl-network-controls"><button class="active" data-relation="all">全部</button><button data-relation="patron">荐举</button><button data-relation="cohort">同年</button><button data-relation="kin">姻亲</button><button data-relation="hostile">攻讦</button><button data-relation="family">家眷</button><input id="dcl-official-search" placeholder="检索人物"></div></header>
+          <div class="dcl-network-layout"><aside class="dcl-network-legend"><h3>关系图例</h3><span><i class="patron"></i>荐举 / 门生</span><span><i class="cohort"></i>同年 / 同乡</span><span><i class="kin"></i>姻亲 / 宗族</span><span><i class="hostile"></i>弹劾 / 攻讦</span><span><i class="spouse"></i>正妻 / 侧室</span><span><i class="daughter"></i>父女</span><hr><b>内宅原则</b><span>家眷有独立利益与信息边界，不自动替官员说话</span></aside><div class="dcl-network-board" id="dcl-network-board"></div><aside class="dcl-official-dossier" id="dcl-official-dossier"></aside></div>
+        </section>
+
+        <section class="dcl-view dcl-intel-view" id="dcl-factions-view"><header><small>朝局暗流</small><h1>党派谱系</h1><p>党派并非固定标签，官员会因案件与圣意改变依附</p></header><div class="dcl-faction-board" id="dcl-faction-board"></div></section>
+        <section class="dcl-view dcl-intel-view" id="dcl-archive-view"><header><small>内廷案牍</small><h1>前情归档</h1><p>旧案、旧批与前后矛盾皆可追溯</p></header><div class="dcl-archive-board" id="dcl-archive-board"></div></section>
+      </section>
+
+      <aside class="dcl-intelligence" id="dcl-intelligence">
+        <section class="dcl-province-card"><span id="dcl-case-severity">案情密度：高</span><h2 id="dcl-province-name">京畿道</h2><p id="dcl-province-meta"></p><b id="dcl-case-trend"></b></section>
+        <section><div class="dcl-section-heading"><h3>主要案件</h3><button data-view="desk">进入案牍</button></div><div id="dcl-case-list"></div></section>
+        <section><div class="dcl-section-heading"><h3>相关官员</h3><button data-view="officials">查看关系</button></div><div id="dcl-official-list"></div></section>
+        <section><div class="dcl-section-heading"><h3>党派影响</h3><button data-view="factions">查看详情</button></div><div class="dcl-faction-meter" id="dcl-faction-meter"></div></section>
+        <section><h3>证据档案</h3><div class="dcl-evidence-counts"><span>矛盾报告 <b id="dcl-conflict-count">2</b></span><span>证人供词 <b>3</b></span><span>票拟照册 <b>4</b></span><span>密报文书 <b>1</b></span></div></section>
+      </aside>
+    </main>
+
+    <dialog id="dcl-summary-dialog">
+      <header><small>本案封匣</small><h2>御批汇总</h2><p id="dcl-summary-text"></p></header>
+      <div class="dcl-summary-list" id="dcl-summary-list"></div>
+      <footer>
+        <button data-action="summary-close">继续核看</button>
+        <button class="dcl-primary" data-action="batch-send" id="dcl-batch-send">发送待发御批</button>
+        <button class="dcl-primary" data-action="next-day" id="dcl-next-day" hidden>翌日再览</button>
+      </footer>
+    </dialog>
+    <div class="dcl-toast" id="dcl-toast" role="status"></div>
+  </section>
+</div>
