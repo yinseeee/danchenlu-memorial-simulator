@@ -1,0 +1,36 @@
+# 丹宸录 · 酒馆社区资源（v1.6.0）
+
+此目录部署在公开 GitHub 仓库，并通过 jsDelivr 提供给《丹宸录》单 PNG 角色卡使用。
+
+`loader.js` 是酒馆助手脚本，内嵌进单 PNG 社区版角色卡，负责从 jsDelivr 远程加载 `publish/community/` 下的前端与美术。
+
+## 版本说明（v1.6.0）
+
+- 完整前端：奏折、舆图（按道落点）、官员关系网、后宫、党派扇形图、人设档案馆、案牍
+- 数值系统：威望/国帑/民心档位语义、货币化国帑、官员风评、党派影响力动态化
+- 重大事件：异族入侵（地图页开关，按数值判定，溃败随机去除一半官员与宫人）
+- 后宫管理：可增添/黜退/复位宫人，支持上传立绘
+- 世界变化登记：AI 剧情引入新人物/关系/党派/地点自动登记，删除消息自动回滚
+- 状态结构：schema v6，旧聊天自动迁移
+
+角色卡内嵌：
+
+- 角色设定与世界书
+- 酒馆助手加载脚本
+- 资源基址与版本信息
+
+远程加载：
+
+- 奏折模拟器 HTML、CSS 和 JavaScript
+- 舆图、纸张、封套、文房与纹理
+- 12 张官员立绘与 29 张家眷立绘
+- 5 张后妃立绘与书法字体
+
+运行依赖：SillyTavern 与酒馆助手（JS-Slash-Runner / Tavern Helper）。
+
+## 更新流程
+
+1. 运行 `node scripts/prepare-community-publish.mjs` 把最新扩展代码同步到 `publish/community/`。
+2. 推送 `publish/community/` 到公开 GitHub 仓库。
+3. 更新本文件与 `scripts/build-community-card.mjs` 中的 commit hash。
+4. 重新生成社区卡并发布。
