@@ -95,6 +95,8 @@ let panelResizeTimer = 0;
 
 const MOBILE_LAYOUT = '(max-width: 820px)';
 const PANEL_EDGE_GAP = 10;
+const LAUNCHER_POSITION_KEY = 'danchenlu_launcher_position_v1';
+const LAUNCHER_EDGE_GAP = 8;
 
 function context() {
   return globalThis.SillyTavern?.getContext?.();
@@ -243,7 +245,114 @@ function ensureLauncher() {
     document.body.append(launcher);
   }
   launcher.onclick = openPanel;
+  bindLauncherDrag(launcher);
   launcher.classList.toggle('dcl-launcher-hidden', !isActiveCard());
+}
+
+function bindLauncherDrag(launcher) {
+  if (launcher.dataset.dragBound === 'true') return;
+  launcher.dataset.dragBound = 'true';
+  let pointer = null;
+  let suppressClick = false;
+
+  applyLauncherPosition(launcher);
+
+  launcher.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    const rect = launcher.getBoundingClientRect();
+    launcher.style.left = `${rect.left}px`;
+    launcher.style.top = `${rect.top}px`;
+    launcher.style.right = 'auto';
+    launcher.style.bottom = 'auto';
+    launcher.classList.add('dcl-launcher-dragging');
+    pointer = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      moved: false,
+    };
+    launcher.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+
+  launcher.addEventListener('pointermove', event => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    const dx = event.clientX - pointer.startX;
+    const dy = event.clientY - pointer.startY;
+    if (Math.hypot(dx, dy) > 4) pointer.moved = true;
+    const maxLeft = Math.max(LAUNCHER_EDGE_GAP, window.innerWidth - pointer.width - LAUNCHER_EDGE_GAP);
+    const maxTop = Math.max(LAUNCHER_EDGE_GAP, window.innerHeight - pointer.height - LAUNCHER_EDGE_GAP);
+    launcher.style.left = `${Math.max(LAUNCHER_EDGE_GAP, Math.min(maxLeft, pointer.left + dx))}px`;
+    launcher.style.top = `${Math.max(LAUNCHER_EDGE_GAP, Math.min(maxTop, pointer.top + dy))}px`;
+  });
+
+  const finish = event => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    launcher.releasePointerCapture?.(event.pointerId);
+    suppressClick = pointer.moved;
+    if (pointer.moved) saveLauncherPosition(launcher);
+    pointer = null;
+    launcher.classList.remove('dcl-launcher-dragging');
+  };
+  launcher.addEventListener('pointerup', finish);
+  launcher.addEventListener('pointercancel', finish);
+  launcher.addEventListener('click', event => {
+    if (!suppressClick) return;
+    suppressClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  window.addEventListener('resize', () => applyLauncherPosition(launcher));
+}
+
+function launcherLayoutKey() {
+  return window.matchMedia(MOBILE_LAYOUT).matches ? 'mobile' : 'desktop';
+}
+
+function readLauncherPositions() {
+  try {
+    const value = JSON.parse(localStorage.getItem(LAUNCHER_POSITION_KEY) || '{}');
+    return value && typeof value === 'object' ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function applyLauncherPosition(launcher) {
+  const saved = readLauncherPositions()[launcherLayoutKey()];
+  if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) {
+    ['left', 'top', 'right', 'bottom'].forEach(property => launcher.style.removeProperty(property));
+    return;
+  }
+  const width = launcher.offsetWidth || 54;
+  const height = launcher.offsetHeight || 58;
+  const availableX = Math.max(0, window.innerWidth - width - LAUNCHER_EDGE_GAP * 2);
+  const availableY = Math.max(0, window.innerHeight - height - LAUNCHER_EDGE_GAP * 2);
+  launcher.style.left = `${LAUNCHER_EDGE_GAP + Math.max(0, Math.min(1, saved.x)) * availableX}px`;
+  launcher.style.top = `${LAUNCHER_EDGE_GAP + Math.max(0, Math.min(1, saved.y)) * availableY}px`;
+  launcher.style.right = 'auto';
+  launcher.style.bottom = 'auto';
+}
+
+function saveLauncherPosition(launcher) {
+  const rect = launcher.getBoundingClientRect();
+  const availableX = Math.max(1, window.innerWidth - rect.width - LAUNCHER_EDGE_GAP * 2);
+  const availableY = Math.max(1, window.innerHeight - rect.height - LAUNCHER_EDGE_GAP * 2);
+  const positions = readLauncherPositions();
+  positions[launcherLayoutKey()] = {
+    x: Math.max(0, Math.min(1, (rect.left - LAUNCHER_EDGE_GAP) / availableX)),
+    y: Math.max(0, Math.min(1, (rect.top - LAUNCHER_EDGE_GAP) / availableY)),
+  };
+  try {
+    localStorage.setItem(LAUNCHER_POSITION_KEY, JSON.stringify(positions));
+  } catch {
+    // Storage can be unavailable in privacy-restricted WebViews; dragging still works for this session.
+  }
 }
 
 async function openPanel() {

@@ -2,7 +2,7 @@
   position: fixed;
   right: max(18px, env(safe-area-inset-right));
   bottom: max(84px, calc(env(safe-area-inset-bottom) + 72px));
-  z-index: 3000;
+  z-index: 9999;
   width: 54px;
   height: 58px;
   border: 1px solid #a44a3d;
@@ -12,6 +12,8 @@
   box-shadow: 0 8px 24px #000a, inset 0 0 0 4px #101417bb;
   font: 25px KaiTi, STKaiti, serif;
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
   transition: transform .2s ease, opacity .2s ease;
 }
 
@@ -20,6 +22,12 @@
   transform: translateY(-3px);
   outline: 2px solid #dfbd76;
   outline-offset: 2px;
+}
+
+#danchenlu-launcher.dcl-launcher-dragging {
+  cursor: grabbing;
+  transform: scale(1.06);
+  transition: none;
 }
 
 #danchenlu-launcher.dcl-launcher-hidden { display: none; }
@@ -540,9 +548,9 @@
   #danchenlu-launcher {
     width: 48px;
     height: 50px;
-    top: auto;
+    top: calc(100dvh - 154px);
     right: max(12px, env(safe-area-inset-right));
-    bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px));
+    bottom: auto;
   }
   #danchenlu-root .dcl-app {
     inset: 0;
