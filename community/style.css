@@ -479,7 +479,7 @@
 #danchenlu-root .dcl-open-document { display: none; position: absolute; bottom: 7%; z-index: 10; padding: 11px 28px; border: 1px solid #b49459; color: #302216; background: #ead8a9e8; box-shadow: 0 5px 16px #0009; font-family: var(--dcl-brush); font-size: 17px; letter-spacing: 3px; backdrop-filter: blur(3px); }
 #danchenlu-root .dcl-open-document:hover { background: #f0dfb5; transform: translateY(-2px); }
 #danchenlu-root .dcl-document.closed + .dcl-open-document { display: block; }
-#danchenlu-root .dcl-review-bar { min-height: 96px; display: grid; grid-template-columns: auto minmax(140px, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 10px 18px; border-top: 1px solid #433729; background: #090f13d9; position: relative; z-index: 9; }
+#danchenlu-root .dcl-review-bar { min-height: 96px; display: grid; grid-template-columns: auto minmax(140px, 1fr) auto auto auto auto; gap: 8px; align-items: center; padding: 10px 18px; border-top: 1px solid #433729; background: #090f13d9; position: relative; z-index: 9; }
 #danchenlu-root .dcl-quick-replies { display: flex; gap: 5px; }
 #danchenlu-root .dcl-quick-replies button,
 #danchenlu-root #dcl-doubt-button { padding: 8px 11px; border: 1px solid #9f895b; color: #3b3023; background: #d8c89f; }
@@ -488,7 +488,9 @@
 #danchenlu-root #dcl-custom-reply { height: 58px; resize: none; padding: 8px; border: 1px solid #9f895b; color: #6e231f; background: #e0d2ae; }
 #danchenlu-root .dcl-primary { border: 1px solid #c16b55; color: #efd6a1; background: #8f2d26; }
 #danchenlu-root #dcl-submit { height: 58px; padding: 0 19px; }
-#danchenlu-root #dcl-summary-open { height: 58px; padding: 0 15px; border: 1px solid #8d7449; color: #d8c18e; background: #182125; }
+#danchenlu-root #dcl-summary-open,
+#danchenlu-root #dcl-next-day-desk { height: 58px; padding: 0 15px; border: 1px solid #8d7449; color: #d8c18e; background: #182125; }
+#danchenlu-root #dcl-next-day-desk { border-color: #9d6a3b; color: #ead09b; background: #332318; }
 #danchenlu-root .dcl-primary:disabled { opacity: .4; cursor: not-allowed; }
 
 #danchenlu-root .dcl-intel-view { padding: 18px; overflow: auto; }
@@ -742,6 +744,7 @@
 #danchenlu-root .dcl-faction-sector:nth-of-type(3) { fill: #a37b3f; }
 #danchenlu-root .dcl-faction-sector:nth-of-type(4) { fill: #637783; }
 #danchenlu-root .dcl-faction-sector:nth-of-type(n+5) { fill: #6f8f6a; }
+#danchenlu-root .dcl-faction-sector[data-faction="锦衣卫"] { fill: #263f4b; }
 #danchenlu-root .dcl-faction-sector:hover,
 #danchenlu-root .dcl-faction-sector:focus-visible { opacity: .78; outline: none; }
 #danchenlu-root .dcl-faction-label { fill: #efe2bd; font-size: 14px; font-family: var(--dcl-brush); letter-spacing: 1px; pointer-events: none; }
@@ -749,6 +752,7 @@
 #danchenlu-root .dcl-faction-legend-item { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid #51432f; color: #d1bd8e; background: #10171b; font-size: 12px; }
 #danchenlu-root .dcl-faction-legend-item i { width: 9px; height: 9px; border-radius: 50%; background: #637783; }
 #danchenlu-root .dcl-faction-legend-item i.dynamic { background: #6f8f6a; }
+#danchenlu-root .dcl-faction-legend-item[data-faction="锦衣卫"] i { background: #263f4b; }
 #danchenlu-root .dcl-faction-legend-item em { color: #8f8064; font-style: normal; }
 #danchenlu-root #dcl-faction-dialog { width: min(560px, calc(100vw - 28px)); max-width: 560px; max-height: min(720px, calc(100dvh - 28px)); overflow: auto; padding: 26px; border: 4px double #7e5c34; color: #352b21; background: #e0d0a9 url("assets/xuan-paper.webp") center / cover; }
 #danchenlu-root #dcl-faction-dialog::backdrop { background: #000b; backdrop-filter: blur(3px); }
@@ -1023,11 +1027,11 @@
   #danchenlu-root .dcl-vermilion { right: 12px; top: auto; bottom: 10px; max-width: 72%; max-height: 46%; writing-mode: horizontal-tb; font-size: 18px; line-height: 1.35; letter-spacing: 2px; }
   #danchenlu-root .dcl-vermilion-seal { right: 8px; bottom: 8px; width: 38px; height: 38px; font-size: 11px; }
   #danchenlu-root .dcl-open-document { bottom: 16px; padding: 9px 20px; font-size: 15px; }
-  #danchenlu-root .dcl-review-bar { flex: 0 0 auto; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 7px 8px max(7px, env(safe-area-inset-bottom)); }
+  #danchenlu-root .dcl-review-bar { flex: 0 0 auto; min-height: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 7px 8px max(7px, env(safe-area-inset-bottom)); }
   #danchenlu-root .dcl-quick-replies { grid-column: 1 / -1; overflow-x: auto; }
   #danchenlu-root .dcl-quick-replies button { flex: 1 0 60px; padding: 7px 9px; }
   #danchenlu-root #dcl-custom-reply { grid-column: 1 / -1; height: 48px; }
-  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { height: 42px; min-width: 0; padding: 0 5px; font-size: 12px; }
+  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-next-day-desk, #danchenlu-root #dcl-submit { height: 42px; min-width: 0; padding: 0 5px; font-size: 12px; }
   #danchenlu-root .dcl-summary-item { grid-template-columns: 28px minmax(0, 1fr); }
   #danchenlu-root .dcl-summary-item em { grid-column: 2; }
   #danchenlu-root .dcl-intel-view { padding: 10px; overflow: auto; }
@@ -1095,17 +1099,17 @@
   #danchenlu-root .dcl-dispatch { flex-basis: 88px; }
   #danchenlu-root .dcl-memorial-card { height: 70px; }
   #danchenlu-root .dcl-document-stage { min-height: 90px; }
-  #danchenlu-root .dcl-review-bar { grid-template-columns: minmax(180px, 1fr) repeat(3, auto); }
+  #danchenlu-root .dcl-review-bar { grid-template-columns: minmax(180px, 1fr) repeat(4, auto); }
   #danchenlu-root .dcl-quick-replies { display: none; }
   #danchenlu-root #dcl-custom-reply { grid-column: 1; height: 42px; }
-  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { padding: 0 10px; }
+  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-next-day-desk, #danchenlu-root #dcl-submit { padding: 0 10px; }
 }
 
 @media (max-width: 380px) {
   #danchenlu-root .dcl-brand small { display: none; }
   #danchenlu-root .dcl-tabs button { flex-basis: 66px; min-width: 66px; }
   #danchenlu-root .dcl-stats span { width: 70px; }
-  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-submit { font-size: 11px; }
+  #danchenlu-root #dcl-doubt-button, #danchenlu-root #dcl-summary-open, #danchenlu-root #dcl-next-day-desk, #danchenlu-root #dcl-submit { font-size: 11px; }
   #danchenlu-root #dcl-summary-dialog footer { flex-direction: column-reverse; }
   #danchenlu-root #dcl-summary-dialog footer button { width: 100%; }
   #danchenlu-root #dcl-official-dialog footer { flex-direction: column-reverse; }
