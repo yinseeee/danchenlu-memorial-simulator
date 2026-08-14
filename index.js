@@ -4,12 +4,12 @@ const MODULE_NAME = 'danchenlu';
 const META_KEY = 'danchenlu_state';
 const PROFILE_EXPORT_VERSION = 1;
 const CASES = Array.isArray(window.danchenluMemorialCases) ? window.danchenluMemorialCases : [];
-const INTRO_CASE_COUNT = CASES.length;
 const MEMORIAL_QUOTA = 15;
 const GENERATED_CASE_TAG = 'dcl_generated_case';
 const WORLD_CHANGE_TAG = 'dcl_world_change';
 const PANEL_URL = new URL('./panel.html', import.meta.url);
 const ASSET_ROOT = new URL('./assets/', import.meta.url);
+let dayAdvanceInFlight = false;
 
 const REGISTRY_LIMIT = 60;
 const EDGES_LIMIT = 100;
@@ -89,6 +89,10 @@ const OFFICIALS = [
   { name: '汪鹤亭', office: '两淮盐运使', faction: '务实', rank: '从三品', origin: '江南道', exam: '承熙三年进士', portrait: 10, x: 89, y: 74, reputation: '长袖善舞，官商两通' },
   { name: '程万金', office: '扬州总商', faction: '盐商', rank: '布衣', origin: '江南道·扬州府', exam: '捐纳候选', portrait: 11, x: 33, y: 86, reputation: '豪商巨贾，手面阔绰' },
   { name: '许三保', office: '河间驿丞', faction: '无党', rank: '未入流', origin: '直隶', exam: '吏员出身', portrait: 9, x: 70, y: 88, reputation: '微末小吏，忠谨本分' },
+  { name: '裴承简', office: '锦衣卫指挥使', faction: '锦衣卫', rank: '正三品', origin: '京畿道·顺天府', exam: '武职世袭，御前简任', portrait: 13, x: 43, y: 10, reputation: '持重寡言，奉诏而动' },
+  { name: '沈砚声', office: '锦衣卫指挥同知', faction: '锦衣卫', rank: '从三品', origin: '山东道·青州府', exam: '军功迁授', portrait: 14, x: 58, y: 12, reputation: '精核勘合，少有漏牍' },
+  { name: '罗惟恭', office: '北镇抚司镇抚使', faction: '锦衣卫', rank: '从四品', origin: '中州道·洛阳府', exam: '刑名吏员擢用', portrait: 15, x: 94, y: 49, reputation: '善审疑狱，不轻信口供' },
+  { name: '魏如晦', office: '锦衣卫千户', faction: '锦衣卫', rank: '正五品', origin: '河西道·凉州府', exam: '行伍累功', portrait: 16, x: 94, y: 61, reputation: '长于缉访，行动谨密' },
 ];
 
 const FAMILY_MEMBERS = [
@@ -210,6 +214,10 @@ const OFFICIAL_PERSONAS = [
   ['圆熟周到，善于维持官商之间不写在公文里的日常秩序。', '认为财赋需要地方合作，却容易把多年互惠当成理所当然的权限。', '保住盐运收入与官府信用。', '最怕查案使盐路停摆，也怕私库和礼单相互印证。', '知道盐运衙门、公引与常例往来；不知御史私下掌握的全部证据。', '答话周全，先解释惯例；被追紧时才区分公账与私账。'],
   ['热络豪爽，谈买卖时比官员更直接。', '把商号存续视为数百人饭碗，也会以此为自己暗股和送礼辩护。', '保住程氏商号与盐路经营资格。', '最怕官府把所有人情支出定成行贿，也怕真账落入对手。', '知道商号内账、牙行和送礼登记；不知官员之间的密议。', '口气实在，爱报成本与行情；受压时会拿行业后果谈条件。'],
   ['不起眼却记性极好，靠马匹、牌符和灶房时辰判断驿递真假。', '想保住小吏饭碗，又厌恶上级把伪造递送全推到驿站。', '证明每封急递真实经过与经手人。', '最怕权贵灭口，也怕如实作证牵连妻女。', '知道河间驿舍的马牌、脚夫、到离时刻；不知道文书内文。', '说话朴直，以具体时刻和人名作答，不擅长揣测朝局。'],
+  ['沉着克制，只在诏令范围清楚时调动缇骑。', '效忠御前并重视锦衣卫威势，却知道越权拿人会让一切证据都被视作罗织。', '把皇帝交办的疑案查到可复核、可交代，而非只交一份认罪口供。', '最怕部属借天威报私怨，也怕查到权贵后御前反而含糊退让。', '知道奉诏案件、锦衣卫内部调度和经合法移交的物证；不自动知道内阁密议或未呈御前的地方私账。', '领旨时先复述范围、对象和禁限；复命时区分实证、口供与推断。'],
+  ['寡言精细，善查关防、勘合、印信、驿递和跨衙门文书。', '相信文书链比威吓可靠，却容易把没有留痕的人情往来估得过轻。', '厘清谁在何时取得、改写或转送关键文书。', '最怕先抓人后找证据，使真正经手人趁乱销毁原件。', '知道锦衣卫奉诏调取的勘合、门籍、封识与值房记录；未经授权不翻阅御前密折。', '按时辰和经手顺序复命，少作性情评断。'],
+  ['冷峻耐心，讯问前先核验物证和各人口供能否彼此独立。', '熟悉诏狱压力，却清楚屈打成招最容易制造一条看似完整的假案。', '找出供词之间真正可交叉印证的部分。', '最怕上峰只要一个名字，也怕人犯死在证据固定之前。', '知道北镇抚司依法收押、讯问和勘验所得；线人传言与刑讯口供都不直接视作事实。', '问题短而具体，复命会注明口供是否有物证支撑。'],
+  ['行动利落，擅长便衣踏勘、盯梢、封存现场和保护证人。', '愿冒险拿到第一手证据，却可能因求快而低估地方关系网的反扑。', '在消息走漏前固定账册、器物、脚印、船马和目击证词。', '最怕惊动目标后证物转移，也不愿把无关家眷当作逼供筹码。', '只知道本次差遣目标、现场所见、部属回报和已交接证物；不知上层未告知的政治目的。', '复命直报地点、时辰、人数与所得物证，不用“必是奸党”替代证据。'],
 ];
 
 OFFICIALS.forEach((person, index) => {
@@ -234,6 +242,8 @@ const NETWORK_EDGES = [
   [2, 7, 'hostile', '票拟冲突'], [2, 9, 'kin', '姻亲'], [3, 6, 'cohort', '都察院同僚'], [3, 8, 'patron', '荐举巡盐'],
   [4, 9, 'cohort', '财赋同僚'], [5, 7, 'hostile', '军饷互讦'], [5, 11, 'patron', '驿传旧部'], [8, 9, 'hostile', '盐案攻讦'],
   [9, 10, 'patron', '官商关照'], [10, 2, 'patron', '岁馈门包'], [10, 8, 'hostile', '索银反目'], [11, 1, 'cohort', '灾情递报'],
+  [12, 13, 'patron', '指挥统属'], [12, 14, 'patron', '奉诏统属'], [13, 15, 'patron', '差遣统属'], [14, 15, 'cohort', '侦讯协办'],
+  [12, 2, 'hostile', '厂卫与内阁相制'], [12, 7, 'cohort', '御前密务协同'], [13, 3, 'hostile', '取证权限争执'], [14, 3, 'cohort', '疑狱证据互校'],
 ];
 
 const DEFAULT_STATE = Object.freeze({
@@ -247,11 +257,11 @@ const DEFAULT_STATE = Object.freeze({
   dynamicFactions: [],
   mapNodes: [],
   worldLog: [],
-  staticFactionInfluence: { '清流': 42, '务实': 28, '勋贵': 17, '内廷': 13 },
+  staticFactionInfluence: { '清流': 42, '务实': 28, '勋贵': 17, '内廷': 13, '锦衣卫': 15 },
   invasion: { enabled: false, triggered: false, triggerDay: 15, result: null },
   casualties: { officials: [], harem: [] },
   harem: { selectedId: 'empress', visits: {}, log: [], removed: [] },
-  freeplay: { awaiting: false, pendingDay: null, lastError: '', generatedCount: 0 },
+  freeplay: { awaiting: false, pendingDay: null, pendingCount: null, lastError: '', generatedCount: 0 },
   memorials: [],
   archive: [],
   selectedCity: null,
@@ -317,7 +327,7 @@ function normalizeState(input) {
   base.schemaVersion = 6;
   base.day = clampInt(state.day, 1, 9999, 1);
   base.dynamicCase = normalizeGeneratedCase(state.dynamicCase, base.day);
-  base.phase = state.phase === 'freeplay' && base.dynamicCase ? 'freeplay' : 'intro';
+  base.phase = state.phase === 'freeplay' ? 'freeplay' : 'intro';
   base.caseIndex = clampInt(state.caseIndex, 0, Math.max(0, CASES.length - 1), 0);
   const legacyPeople = sourceVersion < 6 && base.dynamicCase?.people ? base.dynamicCase.people : [];
   base.peopleRegistry = normalizeRegistryPeople([
@@ -327,9 +337,9 @@ function normalizeState(input) {
   base.dynamicEdges = normalizeDynamicEdges(state.dynamicEdges, base.day);
   base.dynamicFactions = normalizeDynamicFactions(state.dynamicFactions, base.day);
   base.mapNodes = normalizeMapNodes(state.mapNodes, base.day);
-  base.staticFactionInfluence = Object.fromEntries(['清流', '务实', '勋贵', '内廷'].map(name => [
+  base.staticFactionInfluence = Object.fromEntries(['清流', '务实', '勋贵', '内廷', '锦衣卫'].map(name => [
     name,
-    clampInt(state.staticFactionInfluence?.[name], 0, 100, { '清流': 42, '务实': 28, '勋贵': 17, '内廷': 13 }[name]),
+    clampInt(state.staticFactionInfluence?.[name], 0, 100, { '清流': 42, '务实': 28, '勋贵': 17, '内廷': 13, '锦衣卫': 15 }[name]),
   ]));
   base.invasion = {
     enabled: state.invasion?.enabled === true,
@@ -344,7 +354,7 @@ function normalizeState(input) {
   const rawMemorials = Array.isArray(state.memorials) && state.memorials.length
     ? state.memorials
     : (sourceVersion < 6 ? initialMemorialsFromCases() : []);
-  base.memorials = normalizeMemorials(rawMemorials, base.day);
+  base.memorials = normalizeMemorials(rawMemorials, base.day).slice(0, MEMORIAL_QUOTA);
   base.archive = Array.isArray(state.archive) ? state.archive.filter(item => item && typeof item === 'object').slice(-80) : [];
   const validCityIds = new Set([...CITY_GRID.map(city => city.id), ...(base.mapNodes ?? []).map(node => node.id)]);
   base.selectedCity = typeof state.selectedCity === 'string' && validCityIds.has(state.selectedCity) ? state.selectedCity : null;
@@ -415,6 +425,8 @@ function normalizeState(input) {
   base.freeplay.awaiting = state.freeplay?.awaiting === true;
   base.freeplay.pendingDay = state.freeplay?.pendingDay === null || state.freeplay?.pendingDay === undefined
     ? null : clampInt(state.freeplay.pendingDay, 2, 9999, null);
+  base.freeplay.pendingCount = state.freeplay?.pendingCount === null || state.freeplay?.pendingCount === undefined
+    ? null : clampInt(state.freeplay.pendingCount, 1, MEMORIAL_QUOTA, null);
   base.freeplay.lastError = String(state.freeplay?.lastError ?? '').slice(0, 160);
   base.freeplay.generatedCount = clampInt(state.freeplay?.generatedCount, 0, 9999, 0);
   if (!currentCase(base)?.memorials.some(m => m.id === base.activeId)) {
@@ -427,10 +439,12 @@ function cleanGeneratedText(value, maxLength = 240) {
   return String(value ?? '').replaceAll(/<[^>]*>/g, '').replaceAll(/[\u0000-\u001f]/g, ' ').trim().slice(0, maxLength);
 }
 
-function normalizeGeneratedCase(value, day) {
+function normalizeGeneratedCase(value, day, expectedCount = null) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const rawMemorials = Array.isArray(value.memorials) ? value.memorials.slice(0, 5) : [];
-  if (rawMemorials.length < 3) return null;
+  const limit = expectedCount === null ? MEMORIAL_QUOTA : clampInt(expectedCount, 1, MEMORIAL_QUOTA, MEMORIAL_QUOTA);
+  const suppliedMemorials = Array.isArray(value.memorials) ? value.memorials : [];
+  if (!suppliedMemorials.length || (expectedCount !== null && suppliedMemorials.length !== limit)) return null;
+  const rawMemorials = suppliedMemorials.slice(0, limit);
   const memorials = rawMemorials.map((item, index) => {
     const type = item?.type === 'secret' ? 'secret' : 'formal';
     const category = MEMORIAL_CATEGORIES[item?.category] ? item.category : 'report';
@@ -670,7 +684,7 @@ function mergeDynamicWorld(state, world, day) {
   state.dynamicFactions = normalizeDynamicFactions([...(state.dynamicFactions ?? []), ...(world?.factions ?? [])], day);
   state.mapNodes = normalizeMapNodes([...(state.mapNodes ?? []), ...(world?.nodes ?? [])], day);
   (world?.factions ?? []).forEach(item => {
-    const staticKey = ['清流', '务实', '勋贵', '内廷'].find(name => item?.name === name);
+    const staticKey = ['清流', '务实', '勋贵', '内廷', '锦衣卫'].find(name => item?.name === name);
     if (staticKey) {
       state.staticFactionInfluence ??= {};
       state.staticFactionInfluence[staticKey] = clampInt(item.influence, 0, 100, state.staticFactionInfluence[staticKey] ?? 30);
@@ -687,7 +701,7 @@ function mergeDynamicWorld(state, world, day) {
 function ensureKnownFaction(state, factionName, day) {
   const name = cleanGeneratedText(factionName, 30);
   if (!name || name === '未定') return;
-  const known = ['清流', '务实', '勋贵', '内廷'].includes(name)
+  const known = ['清流', '务实', '勋贵', '内廷', '锦衣卫'].includes(name)
     || (state.dynamicFactions ?? []).some(item => item.name === name);
   if (known) return;
   state.dynamicFactions = normalizeDynamicFactions([...(state.dynamicFactions ?? []), {
@@ -1141,11 +1155,11 @@ function bindPanelEvents() {
       case 'official-close': closeOfficialActions(); break;
       case 'edge-close': closeEdgeDialog(); break;
       case 'edge-save': saveEdge(); break;
-      case 'sleep': sleepToNextDay(); break;
+      case 'sleep': await sleepToNextDay(); break;
       case 'toggle-invasion': toggleInvasion(); break;
       case 'remove-harem': removeHaremMember(button.dataset.name); break;
       case 'restore-harem': restoreHaremMember(button.dataset.name); break;
-      case 'next-day': autoRefillMemorials(getState()); break;
+      case 'next-day': await nextDay(); break;
       case 'export-profiles': exportProfiles(); break;
       case 'import-profiles': root.querySelector('#dcl-profile-import')?.click(); break;
       case 'upload-portrait': root.querySelector('#dcl-portrait-import')?.click(); break;
@@ -1377,10 +1391,57 @@ function toggleDoubt() {
 }
 
 function verdictEffect(memorial, reply) {
+  if (isCouncilReply(reply) || isAudienceReply(reply)) return [0, 0, 0];
   const key = ['阅', '知道了'].includes(reply)
     ? reply
-    : (reply === '核议' ? '依议' : (reply === '督查' || /查|核|勘|审|封/.test(reply) ? '着查' : '阅'));
+    : (reply === '督查' || /查|核|勘|审|封/.test(reply) ? '着查' : '阅');
   return memorial.effects?.[key] ?? [1, -1, 0];
+}
+
+function isCouncilReply(reply) {
+  return /内阁议事|核议|议事|廷议|朝议|阁议|会推|集议|召[^，。；]{0,12}议/.test(String(reply ?? ''));
+}
+
+function isAudienceReply(reply) {
+  return /召对问话|召对|御前问话|召见问话|当面对质/.test(String(reply ?? ''));
+}
+
+function isJinyiweiInvestigationReply(reply) {
+  return /督查|锦衣卫|北镇抚司|缇骑/.test(String(reply ?? ''));
+}
+
+function councilInstruction(pending) {
+  const councilItems = pending.filter(item => isCouncilReply(getState().replies[item.id]));
+  const titles = councilItems.map(item => `《${item.title}》`).join('、');
+  return `其中${titles}的朱批是命百官议事，不是批准票拟，也不是最终处分。本轮须在同一日内实际演出一场议事：
+1. 朱批明确写“内阁议事”的，固定由首辅主持内阁议事，不得擅自扩大成朝会；只有玩家另写“朝议、廷议”等命令时才按其字面扩大范围。旧命令“核议”仍按事项范围选择内阁或朝会。不要只说“群臣商议后”，必须写出过程。
+2. 让至少三名有职掌关联、立场不同的具名大臣依次陈说、彼此质疑或补证。争论来自职权、证据、利益和风险，不靠全知旁白替任何一方定忠奸。
+3. 对矛盾先保留至少两种现实解释，例如程序延误、经手差错、地方自保、利益交换；只有出现两项相互独立且可核验的事实时，才把“串谋”升级为主要判断。不得第一轮就让所有人秘密结党或看穿幕后真相。
+4. 群臣可以根据皇帝既往公开言行与本次议事旨意揣摩圣意，但必须彼此猜得不同；不得把猜测写成真实圣意。皇帝全程不发言，不替皇帝写神态、心理、暗示或决定。
+5. 议到分歧充分暴露后，由首辅或主持者归纳二至三条真正有代价差异的主张，伏候圣裁。结尾停在皇帝开口之前，不执行任何一条议案，不跨日，不呈上新折。
+若同批还有明确的最终朱批，只执行那些明确旨意；不得把议事项目混作已经定案。`;
+}
+
+function audienceInstruction(pending, state) {
+  const audienceItems = pending.filter(item => isAudienceReply(state.replies[item.id]));
+  const titles = audienceItems.map(item => `《${item.title}》`).join('、');
+  return `其中${titles}的朱批是召相关人员到御前当面问话，不是内阁议事、审讯定罪或最终处分。本轮须按以下规则处理：
+1. 默认召见该折具折人，并从奏折正文或案卷人物中选择至多两名直接经手、被参或负有职掌的相关人员；说明每个人为何被召。不得无故把整案所有官员都塞进殿内。
+2. 在京且能即时入宫者，写候召、入殿、行礼与各自第一轮答话；远在外地者不得瞬移入京，应写下诏、驿程与最快到京时间，并可让在京代理人或已有文书先行呈答。
+3. 各人只回答其亲历、经手和职掌范围内的事实，明确区分亲见、文书所载、推断与传闻。彼此证词可矛盾，但没有可核验证据不得直接宣布撒谎或串谋。
+4. 皇帝的问题和最终态度留给玩家；不得替皇帝写台词、神态、心理或暗示。先让被召者陈明可供追问的关键矛盾，结尾停在御前候问处。
+5. 召对停留在本日，不自动结案、不执行处罚、不跨日、不生成新折。`;
+}
+
+function jinyiweiInstruction(pending, state) {
+  const investigationItems = pending.filter(item => isJinyiweiInvestigationReply(state.replies[item.id]));
+  const titles = investigationItems.map(item => `《${item.title}》`).join('、');
+  return `其中${titles}的朱批是召锦衣卫奉诏调查，不是交原衙门例行自查。本轮须在同一日内实际启动侦缉：
+1. 由锦衣卫指挥使裴承简领旨并复述调查对象、地域、可调文书和不得越过的边界；按案情从指挥同知沈砚声、北镇抚司镇抚使罗惟恭、千户魏如晦中至少再派两人分工。
+2. 沈砚声负责勘合、印信、门籍、驿递与跨衙门文书链；罗惟恭负责依法收押、讯问和口供交叉核验；魏如晦负责便衣踏勘、盯梢、封存现场、保护证人与固定实物。不得把四人写成同一种冷面杀手。
+3. 调查按“领旨定界—分工—封存或暗访—取得初步物证/证词—复命下一步”的链条推进。至少给出一项可复核所得和一项尚未解决的矛盾，不准凭锦衣卫身份直接知道真相。
+4. 刑讯口供、线人传言和风评都不是铁证；不得屈打成招后宣布破案，不得牵连无关家眷充当逼供工具。若需拿人、抄检或扩大范围，而朱批未明确授权，先呈请皇帝决定。
+5. 回复停留在本日的初查或阶段性复命，不自动结案、不跨日、不生成新折。`;
 }
 
 function submitVerdict() {
@@ -1446,21 +1507,23 @@ function renderSummary() {
 
   const sendButton = document.getElementById('dcl-batch-send');
   const nextButton = document.getElementById('dcl-next-day');
-  const shortage = Math.max(0, MEMORIAL_QUOTA - (state.memorials?.length ?? 0));
+  const dayComplete = memorials.length > 0 && memorials.every(item => state.dispatched[item.id]);
   if (sendButton) {
     const locked = haremExhausted(state);
     sendButton.disabled = locked || pending.length === 0;
     sendButton.textContent = locked ? '御案已锁' : pending.length ? `发送待发御批（${pending.length}）` : '没有待发御批';
   }
-  if (haremExhausted(state)) summary.textContent += ' 今日宠幸已满两次，御案锁定；可在桌案处就寝，进入次日后重新计算。';
+  if (haremExhausted(state)) summary.textContent += ' 今日宠幸已满两次，御案锁定；可用批阅栏“进入次日”或在后宫页就寝，次日重新计算。';
   if (nextButton) {
-    nextButton.hidden = true;
-    nextButton.disabled = state.freeplay.awaiting;
-    nextButton.textContent = state.freeplay.awaiting
-      ? `通政司正在补足新折（缺 ${shortage} 本）…`
+    nextButton.hidden = false;
+    nextButton.disabled = !dayComplete || state.freeplay.awaiting;
+    nextButton.textContent = !dayComplete
+      ? `尚有 ${memorials.length - sent.length} 道御批未发下`
+      : state.freeplay.awaiting
+      ? '通政司正在汇编翌日新折…'
       : state.freeplay.lastError
-        ? '重新补折'
-        : shortage > 0 ? `补足新折（缺 ${shortage} 本）` : '御案已足';
+        ? '重新汇编翌日新折'
+        : '结束今日 · 传翌日新折';
   }
   if (state.freeplay.lastError) summary.textContent += ` 上次生成未收录：${state.freeplay.lastError}。`;
 }
@@ -1480,7 +1543,15 @@ async function sendPendingVerdicts() {
     `【御前汇总朱批｜${caseItem.title}】`,
     ...pending.map((item, index) => `${index + 1}. 《${item.title}》：${state.replies[item.id]}${state.doubts.includes(item.id) ? '（留中存疑，相关文册不得销毁）' : ''}`),
   ].join('\n');
-  const instruction = '以上御批一并发下。请综合呈现这些旨意相互作用后的即时朝堂反应、相关官员的真实行动与一项尚未解决的新线索；不要逐条机械复述，也不要替朕追加决定。';
+  const hasCouncil = pending.some(item => isCouncilReply(state.replies[item.id]));
+  const hasAudience = pending.some(item => isAudienceReply(state.replies[item.id]));
+  const hasJinyiweiInvestigation = pending.some(item => isJinyiweiInvestigationReply(state.replies[item.id]));
+  const instruction = [
+    '以上御批一并发下。请综合呈现这些旨意相互作用后的即时朝堂反应、相关官员的真实行动与一项尚未解决的新线索；不要逐条机械复述，也不要替朕追加决定。普通文书矛盾先保留程序差错、自保、利益冲突等竞争解释；没有两项相互独立的可核验证据，不得直接升级为串谋。剧情停留在本日，不自动跨日或呈上新折。',
+    hasCouncil ? councilInstruction(pending) : '',
+    hasAudience ? audienceInstruction(pending, state) : '',
+    hasJinyiweiInvestigation ? jinyiweiInstruction(pending, state) : '',
+  ].filter(Boolean).join('\n\n');
 
   await sendUserAction(visible, () => {
     const committed = getState();
@@ -1513,12 +1584,10 @@ async function sendPendingVerdicts() {
       });
     });
     committed.archive = committed.archive.slice(0, 80);
-    committed.memorials = committed.memorials.filter(item => !committed.dispatched[item.id]);
     persistState(committed);
     renderAll();
     renderSummary();
   }, buildCaseProfileContext(caseItem, pending), instruction);
-  autoRefillMemorials(getState());
 }
 
 function archiveCurrentDay(state) {
@@ -1534,87 +1603,65 @@ function archiveCurrentDay(state) {
   };
 }
 
-function autoRefillMemorials(previous) {
+async function sleepToNextDay() {
+  if (dayAdvanceInFlight) return;
   const state = getState();
-  const shortage = Math.max(0, MEMORIAL_QUOTA - (state.memorials?.length ?? 0));
-  if (shortage <= 0) {
-    state.day += 1;
-    state.activeId = state.memorials?.[0]?.id ?? null;
-    state.reviewed = {};
-    state.replies = {};
-    state.dispatched = {};
-    state.doubts = [];
-    state.open = false;
-    state.view = 'map';
-    persistState(state);
-    if (panelReady) renderAll();
+  const memorials = currentCase(state).memorials;
+  const unfinished = memorials.filter(item => !state.dispatched[item.id]).slice(0, MEMORIAL_QUOTA);
+  const missingCount = Math.max(0, MEMORIAL_QUOTA - unfinished.length);
+  if (missingCount > 0) {
+    dayAdvanceInFlight = true;
+    try {
+      await requestGeneratedDay(state, missingCount);
+    } finally {
+      dayAdvanceInFlight = false;
+    }
     return;
   }
-  state.freeplay.awaiting = true;
-  state.freeplay.pendingDay = state.day + 1;
-  state.freeplay.lastError = '';
-  persistState(state);
-  const visibleMessage = `【通政司制折｜第${state.freeplay.pendingDay}日】御批已发下，请汇编新折补足御案。`;
-  sendUserAction(visibleMessage, null, refillMemorialsRequest(state, shortage), '请严格按照御案制折协议输出结构化新折，用于扩展收录；正文回复可简要说明补折情况，但不得把协议内容当作剧情。').then(sent => {
-    if (!sent) {
-      const failed = getState();
-      failed.freeplay.awaiting = false;
-      failed.freeplay.lastError = '制折请求未成功发送';
-      persistState(failed);
-      renderSummary();
-    }
-  });
+  const targetDay = state.day + 1;
+  const visibleMessage = `【结束今日｜进入第${chineseDay(targetDay)}日】朕今日不再批阅。未结${unfinished.length}道奏折留案，次日续办。`;
+  const instruction = `这是玩家主动结束第${chineseDay(state.day)}日、进入第${chineseDay(targetDay)}日的明确时间推进。回复必须承认日期已经变为第${chineseDay(targetDay)}日，并以次日清晨或新一日御前事务开场；本轮只承接跨日与未结奏折留案，不得擅自替玩家批折、清空奏折、重复结算或自动生成一批新折。`;
+  dayAdvanceInFlight = true;
+  try {
+    const sent = await sendUserAction(visibleMessage, () => {
+      const committed = getState();
+      if (committed.day >= targetDay) return;
+      committed.history.push(archiveCurrentDay(committed));
+      committed.history = committed.history.slice(-12);
+      committed.day = targetDay;
+      committed.open = false;
+      committed.view = 'map';
+      committed.selectedCity = null;
+      committed.selectedOfficial = null;
+      committed.freeplay.awaiting = false;
+      committed.freeplay.pendingDay = null;
+      committed.freeplay.pendingCount = null;
+      persistState(committed);
+      document.getElementById('dcl-summary-dialog')?.close();
+      renderAll();
+    }, '', instruction);
+    if (!sent) toast('跨日指令未能写入聊天，日期没有改变。');
+  } finally {
+    dayAdvanceInFlight = false;
+  }
 }
 
-function sleepToNextDay() {
-  const state = getState();
-  state.day += 1;
-  state.reviewed = {};
-  state.replies = {};
-  state.dispatched = {};
-  state.doubts = [];
-  state.open = false;
-  state.view = 'map';
-  state.selectedCity = null;
-  state.selectedOfficial = null;
-  state.freeplay.awaiting = false;
-  persistState(state);
-  document.getElementById('dcl-summary-dialog')?.close();
-  renderAll();
-  toast(`第${chineseDay(state.day)}日 · 御前就寝，今日宠幸次数已重新计算`);
-}
-
-function advanceToPresetDay(previous) {
-  const state = normalizeState(previous);
-  state.history.push(archiveCurrentDay(previous));
-  state.history = state.history.slice(-12);
-  state.day += 1;
-  state.caseIndex += 1;
-  state.activeId = CASES[state.caseIndex].memorials[0].id;
-  state.reviewed = {};
-  state.replies = {};
-  state.dispatched = {};
-  state.doubts = [];
-  state.open = false;
-  state.view = 'map';
-  persistState(state);
-  document.getElementById('dcl-summary-dialog')?.close();
-  renderAll();
-  toast('翌日新折已送至御前');
-}
-
-function generatedCaseRequest(state, nextDayNumber) {
+function generatedCaseRequest(state, nextDayNumber, requestedCount) {
   const caseItem = currentCase(state);
   const recent = state.history.slice(-4).map(item => `第${item.day}日《${item.caseTitle}》：${item.summary ?? ''}`).join('\n') || '尚无旧案归档';
   const worldContext = generatedWorldContext(state);
+  const carryoverCount = Math.min(MEMORIAL_QUOTA, caseItem.memorials.filter(item => !state.dispatched[item.id]).length);
+  const conflictRequirement = requestedCount >= 2
+    ? `新折中至少两道在数字、时序、证据或利益上互相冲突`
+    : '这道新折须包含一项可核验事实与一项尚待核实的矛盾';
   return `【进入开放朝政｜请拟第${nextDayNumber}日奏折】
-前三卷河工、军饷、盐引只是玩法引子。从现在开始进入自由朝政，请依据当前朝局、既有事件后果与人物利益，自行生成次日送达御前的一组新奏折。
+首日的河工、军饷、盐引十五折只是玩法引子。从现在开始进入自由朝政。御案现有${carryoverCount}本未结奏折留案，请依据当前朝局、既有事件后果与人物利益，严格补入${requestedCount}本第${nextDayNumber}日新折，使御案合计正好${MEMORIAL_QUOTA}本。
 
 要求：
-1. 生成3—5道奏折，至少两道在数字、时序、证据或利益上互相冲突；题材可为吏治、科举、漕运、灾荒、外交、宗室、宫务牵动前朝、地方民变、财政或旧案后续，不要机械重演前三案。
+1. memorials数组必须恰好包含${requestedCount}道新折，不能多也不能少；${conflictRequirement}。题材可为吏治、科举、漕运、灾荒、外交、宗室、宫务牵动前朝、地方民变、财政或旧案后续，不要机械重演前三案。
 2. 可继续使用既有官员，也可引入新官员；每个人只陈述其实际可能知道的部分。
 3. summary必须是独立可读的案卷简要说明（结案后会进入案牍前情归档供玩家点开回看），contradiction是幕后因果，只用于之后保持一致。
-4. people可继续沿用既有官员（不重复输出完整档案即可），也可引入新人物；新人物建议提供kind（official/family/harem/case）、office、rank、faction、origin、role与publicFace/core/motive/fear/knows/voice。faction必须填写：沿用既有党派名（清流、务实、勋贵、内廷或已有新党派），或提出新党派并把新党名同时写进factions；不得留空。memorials中每个新具折人也要写faction，且与people中的党派一致。
+4. people可继续沿用既有官员（不重复输出完整档案即可），也可引入新人物；新人物建议提供kind（official/family/harem/case）、office、rank、faction、origin、role与publicFace/core/motive/fear/knows/voice。faction必须填写：沿用既有党派名（清流、务实、勋贵、内廷、锦衣卫或已有新党派），或提出新党派并把新党名同时写进factions；不得留空。memorials中每个新具折人也要写faction，且与people中的党派一致。
 5. relations用于登记新结或改变的人物关系：a、b为人名，type限patron/cohort/kin/hostile/family/case，label为关系说明；每个新人物必须至少给出一条与既有官员的关系（没有深交可写同案具折或同地为官），不得留空。
 6. factions用于提出或更新党派：name、description、members（人名）、rivals（对立派系名，最多4个）、influence（0—100整数）；members只列实际相关人物，rivals只写确有朝堂对立的派系。
 7. nodes用于地图上新增或变动的地点/衙门：name、region（所在道府或衙门）、severity（高/中/低）；尽量与奏折region一致，便于御前按图索卷。
@@ -1625,33 +1672,8 @@ function generatedCaseRequest(state, nextDayNumber) {
 </${GENERATED_CASE_TAG}>
 
 ${worldContext}
-刚结案：《${caseItem.title}》；${caseItem.summary}
+前日御案：《${caseItem.title}》；留案${carryoverCount}本，待补${requestedCount}本。
 近期归档：\n${recent}`;
-}
-
-function refillMemorialsRequest(state, count) {
-  const recent = state.archive.slice(-6).map(item => `第${item.day}日《${item.title}》：${item.reply ?? '无批'}`).join('\n') || '尚无归档奏折';
-  const cityList = CITY_GRID.map(city => `${city.name}（${city.region}）`).join('、');
-  const categoryList = Object.entries(MEMORIAL_CATEGORIES).map(([key, meta]) => `${meta.label}`).join('、');
-  const occupiedCities = new Set((state.memorials ?? []).map(item => item.cityId).filter(Boolean));
-  const remainingCities = CITY_GRID.filter(city => !occupiedCities.has(city.id)).slice(0, count);
-  const preferredCities = remainingCities.map(city => city.name).join('、') || '京师、凉州、扬州';
-  return `【御案补折｜第${state.freeplay.pendingDay}日】请生成${count}道新奏折补足御案，使御前始终保有${MEMORIAL_QUOTA}本待批。
-
-要求：
-1. 每道奏折必须绑定一个城市，题材与官员从该城出发：禀报当地政情、钱粮、灾情、刑名、漕运、盐务、边事或人情。优先从未有奏折的城市取材：${preferredCities}。
-2. 内容类型从以下任选，尽量多样：${categoryList}。报告为寻常禀报；检举为弹劾攻讦；请功为请奖叙功；日常为请安、贺节、例行公事；奉承为颂圣献媚；进献为贡物献礼。可续用既有官员，也可引入新官员。
-3. 每人只陈述其实际可能知道的部分；数字、时序、经手人可相互印证或冲突；不给正确答案。
-4. 新具折人必须在faction给出党派：沿用清流、务实、勋贵、内廷或既有新党派，也可提出新党名；党派须与该官员官职、立场和折子内容相符，不得留空。
-5. 若引入新官员，须在relations中给出其与既有官员至少一条关系（type限patron/cohort/kin/hostile/family/case，label为关系说明）；没有明确剧情关系可写同案具折。
-6. 只输出下面标签包裹的严格JSON，不要代码围栏、解释或额外正文。
-
-<${GENERATED_CASE_TAG}>
-{"memorials":[{"type":"formal","category":"report","region":"城市名","title":"奏折标题","lead":"事由短句","sender":"具折人","office":"官职","faction":"党派","date":"月日","time":"递送时辰","body":["第一段正文","第二段正文"],"cabinet":"题本票拟；密折写空字符串","reveal":[0,1],"suspicious":false}],"relations":[{"a":"人名甲","b":"人名乙","type":"cohort","label":"同案具折"}]}
-</${GENERATED_CASE_TAG}>
-
-可用城市：${cityList}。
-刚发下御批的奏折：${recent}。`;
 }
 
 function generatedWorldContext(state) {
@@ -1675,18 +1697,23 @@ function generatedWorldContext(state) {
   return `当前朝局：\n${semantics}\n党派影响：${factionOverviewText}。\n${factionRule}\n${invasionLine ? `${invasionLine}\n` : ''}${hardRequirements.join('\n')}`;
 }
 
-async function requestGeneratedDay(previous) {
+async function requestGeneratedDay(previous, requestedCount) {
   const state = normalizeState(previous);
+  const count = clampInt(requestedCount, 1, MEMORIAL_QUOTA, MEMORIAL_QUOTA);
   state.freeplay.awaiting = true;
   state.freeplay.pendingDay = previous.day + 1;
+  state.freeplay.pendingCount = count;
   state.freeplay.lastError = '';
   persistState(state);
   renderSummary();
-  const visibleMessage = `【通政司制折｜第${state.freeplay.pendingDay}日】请依据当前朝局与既有后果，汇编翌日送达御前的新折。`;
-  const sent = await sendUserAction(visibleMessage, null, generatedCaseRequest(previous, state.freeplay.pendingDay), '请严格按照御案制折协议输出结构化新折，用于扩展收录；正文回复可简要说明制折情况，但不得把协议内容当作剧情。');
+  const carryoverCount = MEMORIAL_QUOTA - count;
+  const visibleMessage = `【通政司补折｜第${state.freeplay.pendingDay}日】御案留案${carryoverCount}本，请补入${count}本新折，使御案共${MEMORIAL_QUOTA}本。`;
+  const sent = await sendUserAction(visibleMessage, null, generatedCaseRequest(previous, state.freeplay.pendingDay, count), '请严格按照御案补折协议输出结构化新折，用于扩展收录；新折数量必须与要求完全一致，正文回复可简要说明制折情况，但不得把协议内容当作剧情。');
   if (!sent) {
     const failed = getState();
     failed.freeplay.awaiting = false;
+    failed.freeplay.pendingDay = null;
+    failed.freeplay.pendingCount = null;
     failed.freeplay.lastError = '制折请求未成功发送';
     persistState(failed);
     renderSummary();
@@ -1696,20 +1723,16 @@ async function requestGeneratedDay(previous) {
 async function nextDay() {
   const previous = getState();
   const memorials = currentCase(previous).memorials;
-  if (!memorials.every(item => previous.dispatched[item.id])) {
+  if (!memorials.length || !memorials.every(item => previous.dispatched[item.id])) {
     toast('本案尚有御批未发下');
     openSummary();
-    return;
-  }
-  if (previous.phase === 'intro' && previous.caseIndex < INTRO_CASE_COUNT - 1) {
-    advanceToPresetDay(previous);
     return;
   }
   if (previous.freeplay.awaiting) {
     toast('通政司正在汇编次日新折');
     return;
   }
-  await requestGeneratedDay(previous);
+  await requestGeneratedDay(previous, MEMORIAL_QUOTA);
 }
 
 function extractGeneratedCase(message) {
@@ -1920,27 +1943,36 @@ function handleGeneratedCaseMessage(messageId) {
   }
   try {
     const parsed = extractGeneratedCase(message);
-    const isRefill = (state.memorials?.length ?? 0) > 0 || state.freeplay.pendingDay > 3;
-    const refill = isRefill ? normalizeMemorials(parsed.memorials, state.freeplay.pendingDay) : normalizeGeneratedCase(parsed, state.freeplay.pendingDay);
-    if (!refill || (isRefill ? !refill.length : !refill)) throw new Error('未能解析有效奏折');
-    const existingIds = new Set(state.memorials.map(item => item.id));
-    const newMemorials = (isRefill ? refill : (refill.memorials ?? [])).filter(item => !existingIds.has(item.id));
-    if (!newMemorials.length) throw new Error('新折与御案重复');
-    state.memorials = normalizeMemorials([...(state.memorials ?? []), ...newMemorials], state.freeplay.pendingDay);
-    state.day = state.freeplay.pendingDay;
+    const pendingDay = state.freeplay.pendingDay;
+    const requestedCount = clampInt(state.freeplay.pendingCount, 1, MEMORIAL_QUOTA, MEMORIAL_QUOTA);
+    const carryovers = (state.memorials ?? []).filter(item => !state.dispatched[item.id]).slice(0, MEMORIAL_QUOTA);
+    if (carryovers.length + requestedCount !== MEMORIAL_QUOTA) throw new Error('御案缺口已变化，请重新点击进入次日');
+    const refill = normalizeGeneratedCase(parsed, pendingDay, requestedCount);
+    if (!refill) throw new Error(`通政司须恰好补${requestedCount}本新折`);
+    const existingIds = new Set(carryovers.map(item => item.id));
+    const newMemorials = (refill.memorials ?? []).filter(item => !existingIds.has(item.id));
+    if (newMemorials.length !== requestedCount) throw new Error('新折数量不足或与留案奏折重复');
+    const nextMemorials = normalizeMemorials([...carryovers, ...newMemorials], pendingDay).slice(0, MEMORIAL_QUOTA);
+    if (nextMemorials.length !== MEMORIAL_QUOTA) throw new Error(`御案未补足${MEMORIAL_QUOTA}本`);
+    const carryIds = new Set(carryovers.map(item => item.id));
+    state.history.push(archiveCurrentDay(state));
+    state.history = state.history.slice(-12);
+    state.memorials = nextMemorials;
+    state.day = pendingDay;
     state.phase = 'freeplay';
-    registerMemorialSenders(state, newMemorials, state.freeplay.pendingDay);
-    const added = mergeDynamicWorld(state, extractWorldChanges(parsed, state.freeplay.pendingDay), state.freeplay.pendingDay);
-    recordWorldLog(state, messageId, added, state.freeplay.pendingDay);
-    state.activeId = state.memorials[0]?.id ?? null;
-    state.reviewed = {};
-    state.replies = {};
+    registerMemorialSenders(state, newMemorials, pendingDay);
+    const added = mergeDynamicWorld(state, extractWorldChanges(parsed, pendingDay), pendingDay);
+    recordWorldLog(state, messageId, added, pendingDay);
+    state.reviewed = Object.fromEntries(Object.entries(state.reviewed ?? {}).filter(([id, value]) => carryIds.has(id) && value === true));
+    state.replies = Object.fromEntries(Object.entries(state.replies ?? {}).filter(([id, value]) => carryIds.has(id) && typeof value === 'string'));
     state.dispatched = {};
-    state.doubts = [];
+    state.doubts = (state.doubts ?? []).filter(id => carryIds.has(id));
+    state.activeId = state.memorials.find(item => !state.reviewed[item.id])?.id ?? state.memorials[0]?.id ?? null;
     state.open = false;
     state.view = 'map';
     state.freeplay.awaiting = false;
     state.freeplay.pendingDay = null;
+    state.freeplay.pendingCount = null;
     state.freeplay.lastError = '';
     state.freeplay.generatedCount += 1;
     const invasionResult = maybeTriggerInvasion(state);
@@ -1948,10 +1980,12 @@ function handleGeneratedCaseMessage(messageId) {
     document.getElementById('dcl-summary-dialog')?.close();
     if (panelReady) renderAll();
     if (invasionResult) notify(invasionMessage(invasionResult), invasionResult.band === 'collapse' ? 'warning' : 'info');
-    notify(`第${state.day}日新折已收入御案。`, 'success');
+    notify(`第${state.day}日补入${newMemorials.length}本新折，御案共${state.memorials.length}本。`, 'success');
   } catch (error) {
     console.error('[丹宸录] AI 奏折解析失败', error);
     state.freeplay.awaiting = false;
+    state.freeplay.pendingDay = null;
+    state.freeplay.pendingCount = null;
     state.freeplay.lastError = String(error?.message ?? '案卷格式无效').slice(0, 160);
     persistState(state);
     if (panelReady) {
@@ -2003,6 +2037,9 @@ function formatHaremProfile(member) {
 function buildCaseProfileContext(caseItem, pending) {
   const state = getState();
   const names = new Set([...caseItem.people.map(item => item.name), ...pending.map(item => item.sender)]);
+  if (pending.some(item => isJinyiweiInvestigationReply(state.replies[item.id]))) {
+    ['裴承简', '沈砚声', '罗惟恭', '魏如晦'].forEach(name => names.add(name));
+  }
   const sections = [];
   names.forEach(name => {
     const index = profileIndexByDefaultName('official', name);
@@ -2149,9 +2186,9 @@ function renderMemorialList() {
     ? `<button class="dcl-back-officials" data-back-officials="1"><i>←</i><span>返回 ${escapeHtml(state.selectedOfficial)} 所在官员列表</span></button>`
     : '';
   listEl.innerHTML = backButton + list.map((item, index) => `
-    <button class="dcl-memorial-card ${item.type} cat-${item.category} ${item.id === state.activeId ? 'active' : ''} ${state.reviewed[item.id] ? 'reviewed' : ''} ${state.doubts.includes(item.id) ? 'doubt' : ''}" data-memorial="${escapeHtml(item.id)}">
+    <button class="dcl-memorial-card ${item.type} cat-${item.category} ${item.id === state.activeId ? 'active' : ''} ${state.reviewed[item.id] ? 'reviewed' : ''} ${state.dispatched[item.id] ? 'dispatched' : ''} ${state.doubts.includes(item.id) ? 'doubt' : ''}" data-memorial="${escapeHtml(item.id)}">
       <span class="dcl-doc-thumb"><i>${MEMORIAL_CATEGORIES[item.category]?.icon ?? '报'}</i></span>
-      <span class="dcl-memorial-copy"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(MEMORIAL_CATEGORIES[item.category]?.label ?? '报告')} · ${escapeHtml(item.region)} · ${escapeHtml(item.sender)}</small><em>${state.reviewed[item.id] ? '待发送' : index === 0 ? '紧急' : '待阅'}</em></span>
+      <span class="dcl-memorial-copy"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(MEMORIAL_CATEGORIES[item.category]?.label ?? '报告')} · ${escapeHtml(item.region)} · ${escapeHtml(item.sender)}</small><em>${state.dispatched[item.id] ? '已发下' : state.reviewed[item.id] ? '待发送' : index === 0 ? '紧急' : '待阅'}</em></span>
     </button>`).join('');
   const ids = new Set((state.memorials ?? []).map(item => item.id));
   const reviewed = Object.keys(state.reviewed).filter(id => ids.has(id)).length;
@@ -2270,7 +2307,7 @@ function renderIntel() {
   }) : (state.memorials ?? []));
   const province = city
     ? { name: city.name, meta: `${visibleMemorials.length} 道待批`, trend: '按图索折 · 御案汇入', severity: '案情密度：中' }
-    : { name: '天下奏报', meta: `${item.memorials.length} 道待批 · 御案${MEMORIAL_QUOTA}本为限`, trend: '通政司汇折 · 批毕即补', severity: '案情密度：动态' };
+    : { name: '天下奏报', meta: `${item.memorials.length} 道在案 · 御案恒定${MEMORIAL_QUOTA}本`, trend: '玩家跨日 · 按缺口补足', severity: '案情密度：动态' };
   document.getElementById('dcl-province-name').textContent = province.name;
   document.getElementById('dcl-province-meta').textContent = province.meta;
   document.getElementById('dcl-case-trend').textContent = province.trend;
@@ -2290,7 +2327,7 @@ function renderIntel() {
         : PLACEHOLDER_AVATAR;
     return `<button class="dcl-official-row" data-view="officials"><img class="dcl-portrait" src="${avatar}" alt="${escapeHtml(person.name)}画像"><div><b>${escapeHtml(person.name)}</b><small>${escapeHtml(person.office)}</small></div><em>${escapeHtml(reputation)}</em></button>`;
   }).join('');
-  document.getElementById('dcl-faction-meter').innerHTML = factionOverview(state).slice(0, 4).map(faction => `<span><i>${escapeHtml(faction.name.slice(0, 1))}</i><b>${faction.influence}%</b><small>${escapeHtml(faction.name)}</small></span>`).join('');
+  document.getElementById('dcl-faction-meter').innerHTML = factionOverview(state).slice(0, 5).map(faction => `<span><i>${escapeHtml(faction.name.slice(0, 1))}</i><b>${faction.influence}%</b><small>${escapeHtml(faction.name)}</small></span>`).join('');
   document.getElementById('dcl-conflict-count').textContent = item.memorials.filter(memorial => memorial.suspicious).length;
 }
 
@@ -2299,13 +2336,15 @@ function factionOverview(state) {
     '清流': ['务实', '勋贵'],
     '务实': ['清流', '内廷'],
     '勋贵': ['清流', '内廷'],
-    '内廷': ['务实', '勋贵'],
+    '内廷': ['务实', '勋贵', '锦衣卫'],
+    '锦衣卫': ['清流', '内廷'],
   };
   const staticFactions = [
     ['清流', '清查攻讦', state.staticFactionInfluence?.['清流'] ?? 42],
     ['务实', '先赈后查', state.staticFactionInfluence?.['务实'] ?? 28],
     ['勋贵', '边功军饷', state.staticFactionInfluence?.['勋贵'] ?? 17],
     ['内廷', '御前密报', state.staticFactionInfluence?.['内廷'] ?? 13],
+    ['锦衣卫', '奉诏侦缉与证据复核', state.staticFactionInfluence?.['锦衣卫'] ?? 15],
   ].map(([name, description, influence]) => ({
     id: name, name, description, influence, members: [], static: true,
     rivals: (staticRivals[name] ?? []).map(rival => {
@@ -2384,7 +2423,7 @@ function renderDocument() {
   doubtButton.classList.toggle('active', state.doubts.includes(memorial.id));
   doubtButton.disabled = dispatched || locked;
   document.querySelectorAll('#danchenlu-root [data-reply]').forEach(button => {
-    button.disabled = locked;
+    button.disabled = locked || dispatched;
     button.classList.toggle('selected', button.dataset.reply === textarea.value);
   });
   updateSubmitState();
@@ -3261,7 +3300,7 @@ function renderHarem() {
     <span><small>宫册在位</small><b>${haremMembers.length} 人</b></span>
     <span class="${exhausted ? 'exhausted' : ''}"><small>今日宠幸</small><b>${todayCount}/${HAREM_DAILY_LIMIT}${exhausted ? ' · 已满' : ` · 余 ${remaining}`}</b></span>
     <span><small>最近宫务</small><b>${latestLabel}</b></span>
-    <em>点名同房与临幸每日合计两次；宠幸满两次后御案锁定，当日不可再批阅奏折。</em>`;
+    <em>一次宠幸不会锁御案；点名同房与临幸每日合计满两次后才锁定。先批奏折不影响随后临幸。</em>`;
 
   roster.innerHTML = haremMembers.map(item => {
     const record = visitRecord(state, item.id);
@@ -3280,13 +3319,17 @@ function renderHarem() {
   const memberOrigin = member.origin ?? '';
   const memberDuty = member.duty ?? member.role ?? '';
   const actedToday = haremActedToday(state, member.id);
+  const unfinishedMemorials = currentCase(state).memorials.filter(item => !state.dispatched[item.id]).length;
+  const sleepHint = unfinishedMemorials
+    ? `就寝后进入第${chineseDay(state.day + 1)}日，${unfinishedMemorials}道未结奏折留案续办。`
+    : `就寝后进入第${chineseDay(state.day + 1)}日，并由通政司汇编新折。`;
   dossier.innerHTML = `
     <div class="dcl-harem-feature"><img src="${resolvePortraitUrl(member.portrait, 'harem')}" alt="${escapeHtml(member.name)}画像"><span><i>${escapeHtml(memberRank)}</i><b>${escapeHtml(member.name)}</b><small>${escapeHtml(memberPalace)}</small></span></div>
     <section class="dcl-harem-register"><small>${escapeHtml(memberStanding)} · ${member.age ?? '？'}岁</small><h2>${escapeHtml(memberRank)} · ${escapeHtml(member.name)}</h2><b>${escapeHtml(memberOrigin)}</b>
       <dl><dt>宫居</dt><dd>${escapeHtml(memberPalace)}</dd><dt>所掌</dt><dd>${escapeHtml(memberDuty)}</dd><dt>承宠</dt><dd>${record.count} 次${record.lastDay ? ` · 最近第${chineseDay(record.lastDay)}日` : ''}</dd><dt>知情</dt><dd>${escapeHtml(member.knows)}</dd></dl>
     </section>
     <section class="dcl-harem-character"><h3>仪态与行事</h3><p>${escapeHtml(member.publicFace)}</p><h3>内在矛盾</h3><p>${escapeHtml(member.core)}</p><h3>所求与所惧</h3><p>${escapeHtml(member.motive)} ${escapeHtml(member.fear)}</p><small>说话方式：${escapeHtml(member.voice)}</small></section>
-    <aside class="dcl-harem-actions"><small>每日宫务</small><h3>${escapeHtml(memberRank)}${escapeHtml(member.name)}</h3><button class="dcl-primary" data-harem-action="summon" ${actedToday || exhausted ? 'disabled' : ''}>点名同房</button><button data-harem-action="visit" ${actedToday || exhausted ? 'disabled' : ''}>临幸宫殿</button>${actedToday ? '<small class="dcl-harem-acted-note">今夜已承宠，明日再传。</small>' : ''}</aside>`;
+    <aside class="dcl-harem-actions"><small>每日宫务</small><h3>${escapeHtml(memberRank)}${escapeHtml(member.name)}</h3><button class="dcl-primary" data-harem-action="summon" ${actedToday || exhausted ? 'disabled' : ''}>点名同房</button><button data-harem-action="visit" ${actedToday || exhausted ? 'disabled' : ''}>临幸宫殿</button>${actedToday ? '<small class="dcl-harem-acted-note">今夜已承宠，明日再传。</small>' : ''}${todayCount > 0 ? `<button type="button" data-action="sleep">就寝 · 进入第${chineseDay(state.day + 1)}日</button><small class="dcl-harem-acted-note">${sleepHint}</small>` : ''}</aside>`;
 }
 
 async function runHaremAction(type) {
@@ -3637,7 +3680,7 @@ function buildStatePrompt() {
     .slice(0, 6)
     .map(item => `${item.name}（${item.office}${item.role ? ` · ${item.role}` : ''}）`)
     .join('、');
-  const factionLine = factionOverview(state).slice(0, 4)
+  const factionLine = factionOverview(state).slice(0, 5)
     .map(faction => `${faction.name}${faction.static ? '' : '（新起）'}${faction.influence}%`)
     .join('、');
   const dynamicEdgeCount = state.dynamicEdges?.length ?? 0;
@@ -3651,7 +3694,7 @@ function buildStatePrompt() {
   const invasionLine = invasionContextLine(state);
   const haremContext = state.view === 'harem' ? `
 当前正在处理后宫宫务。
-今日宠幸：${haremToday}/${HAREM_DAILY_LIMIT}（点名同房或临幸合计），剩余 ${haremRemaining} 次；宠幸满两次后御案锁定，当日不可再批阅奏折，就寝进入次日后重新计算。
+今日宠幸：${haremToday}/${HAREM_DAILY_LIMIT}（点名同房或临幸合计），剩余 ${haremRemaining} 次；一次不会锁御案，满两次后御案锁定。先批奏折不影响随后临幸；宠幸后可在后宫页明确就寝进入次日。
 当前人物：${consort.rank}${consort.name}，${consort.age ?? '？'}岁，居${consort.palace ?? '待定宫居'}。${consort.publicFace}${consort.core}
 她所求：${consort.motive} 她所惧：${consort.fear}
 她实际可能知道：${consort.knows} 说话方式：${consort.voice}
@@ -3659,7 +3702,7 @@ function buildStatePrompt() {
 后宫叙事约束：五位妃嫔都是有独立利益与信息边界的成年人物；位份约束礼制和宫权，不预设善恶；不因一次点名或临幸自动倾心，不因他人受宠自动争宠；任何关系升温、裂痕或结盟都须由正文事件自然过渡。
 ` : '';
   return `<danchenlu_runtime>
-当前是丹宸录奏折模拟器的第${state.day}日。御案始终保有${MEMORIAL_QUOTA}本待批奏折，奏折按来源城市分布在大晟十道（每道两城：${CITY_GRID.map(city => city.name).join('、')}）。奏折分报告、检举、请功、日常、奉承、进献等类型，各有不同官员与题材；批阅发送后奏折归档入案牍，通政司随即补足新折。玩家身份为大晟皇帝，拥有最终裁断权；你负责扮演朝堂、官员、文书与后果，不替玩家决定。
+当前是丹宸录奏折模拟器的第${state.day}日。御案始终以${MEMORIAL_QUOTA}本为定额：首日预置${MEMORIAL_QUOTA}本引子奏折，此后只在玩家主动跨日时保留未结奏折，并由通政司严格按缺口补入新折，使次日御案仍为${MEMORIAL_QUOTA}本。奏折按来源城市分布在大晟十道（每道两城：${CITY_GRID.map(city => city.name).join('、')}），分报告、检举、请功、日常、奉承、进献等类型。朱批发下后只呈现本日后果，不立即补折；只有玩家主动点击批阅栏“进入次日”、汇总页“结束今日”或在后宫页就寝，日期才推进并补足。跨日操作必须写入聊天正文，使前端状态与模型所见日期一致。玩家身份为大晟皇帝，拥有最终裁断权；你负责扮演朝堂、官员、文书与后果，不替玩家决定。
 朝局数值：${statSemantics}
 党派影响（0—100，高影响力不等于正确）：${factionLine}。
 当前御案（${(state.memorials ?? []).length} 本待批）：${(state.memorials ?? []).map(item => `${item.title}（${MEMORIAL_CATEGORIES[item.category]?.label ?? '报告'}·${item.region}·${item.sender}）`).join('；') || '无'}。
@@ -3671,10 +3714,10 @@ function buildStatePrompt() {
 ${recentPeople ? `近期新涉或活跃人物：${recentPeople}。` : ''}${dynamicEdgeCount ? `已登记动态关系 ${dynamicEdgeCount} 条：${dynamicEdgeLine}。关系变化以正文事件为准，不得凭空否认或滥用。` : ''}
 ${invasionLine ? `${invasionLine}\n` : ''}
 ${haremContext}
-叙事约束：每次回应先承接玩家最新行为，再呈现可观察后果；官员有利益、信息盲区和自保逻辑；不把所有冲突简化成忠奸二分；不输出变量代码、状态标签或操作教程；结尾保留一个可行动钩子，但不强迫选择。
+叙事约束：每次回应先承接玩家最新行为，再呈现可观察后果；官员有利益、信息盲区和自保逻辑。证据纪律：普通矛盾先同时保留程序延误、经手差错、自保、利益交换等至少两种解释；没有两项相互独立且可核验的事实，不把猜疑升级成秘密串谋，不让第一轮出场的大臣集体阴谋化。若朱批为“内阁议事/核议/廷议/阁议/朝议”，它只是启动议事而非批准票拟；明确写“内阁议事”时只组织内阁诸臣。同日内让相关大臣充分争辩并各自揣摩圣意，皇帝不发言、不被代写神态或心理，群臣归纳二至三案后停在候旨处，由玩家最后裁断。若朱批为“召对问话”，让具折人及至多两名直接相关者按实际路程候召或入殿，只陈其所知，停在御前候问处，不替皇帝发问。不把所有冲突简化成忠奸二分；不输出变量代码、状态标签或操作教程；结尾保留一个可行动钩子，但不强迫选择。
 世界登记（仅在本轮剧情确实引入了新人物、新关系、新党派或新地点时才附带，其余情况绝不输出）：在回复末尾追加一行
 <dcl_world_change>{"people":[{"name":"姓名","kind":"official","office":"官职","rank":"品秩","faction":"党派","origin":"籍贯","role":"身份职责","reputation":"朝野风评","publicFace":"外在行事","core":"内在矛盾","motive":"动机","fear":"所惧","knows":"信息边界","voice":"说话方式"}],"relations":[{"a":"人名甲","b":"人名乙","type":"patron","label":"关系说明"}],"factions":[{"name":"党名","description":"主张","members":["人名"],"influence":30}],"nodes":[{"name":"地点或衙门","region":"道府","severity":"中"}]}</dcl_world_change>
-该标签只用于御案登记，不进入剧情正文；已有默认档案的十二官员不必重复登记。
+该标签只用于御案登记，不进入剧情正文；已有默认档案的十六名官员（含四名锦衣卫）不必重复登记。
 新人物必须同时给出至少一条relations（与既有官员的同僚、上下级、同案具折或同地为官等），不得留空。
 </danchenlu_runtime>`;
 }

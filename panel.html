@@ -56,14 +56,15 @@
           </div>
           <div class="dcl-harem-lock" id="dcl-harem-lock" hidden>
             <b>今日已宠幸两次</b>
-            <span>御案锁定，今日不可再批阅奏折。就寝安歇进入次日，次数重新计算。</span>
+            <span>御案锁定，今日不可再批阅奏折。可直接进入次日，次数重新计算。</span>
             <button type="button" data-action="sleep">就寝安歇</button>
           </div>
           <div class="dcl-review-bar">
-            <div class="dcl-quick-replies"><button data-reply="阅">阅</button><button data-reply="知道了">知道了</button><button data-reply="核议">核议</button><button data-reply="督查">督查</button></div>
+            <div class="dcl-quick-replies"><button data-reply="阅">阅</button><button data-reply="知道了">知道了</button><button data-reply="内阁议事" title="召集内阁诸臣先议，皇帝最后裁断">内阁议事</button><button data-reply="召对问话" title="召具折人与相关官员到御前当面问话">召对问话</button><button data-reply="召锦衣卫查办" title="召锦衣卫分工调查并呈阶段性复命">锦衣卫查办</button></div>
             <textarea id="dcl-custom-reply" maxlength="80" placeholder="御笔亲书朱批……"></textarea>
             <button data-action="doubt" id="dcl-doubt-button">留中存疑</button>
             <button data-action="summary" id="dcl-summary-open">御批汇总</button>
+            <button data-action="sleep" id="dcl-next-day-desk" title="结束今日并向酒馆发送跨日指令；未结奏折留案续办">进入次日</button>
             <button class="dcl-primary" data-action="submit" id="dcl-submit" disabled>暂存朱批</button>
           </div>
         </section>
@@ -106,7 +107,7 @@
       <footer>
         <button data-action="summary-close">继续核看</button>
         <button class="dcl-primary" data-action="batch-send" id="dcl-batch-send">发送待发御批</button>
-        <button class="dcl-primary" data-action="next-day" id="dcl-next-day" hidden>翌日再览</button>
+        <button class="dcl-primary" data-action="next-day" id="dcl-next-day" disabled>尚有御批未发下</button>
       </footer>
     </dialog>
     <dialog id="dcl-faction-dialog">
