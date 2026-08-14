@@ -5,6 +5,7 @@ const META_KEY = 'danchenlu_state';
 const PROFILE_EXPORT_VERSION = 1;
 const CASES = Array.isArray(window.danchenluMemorialCases) ? window.danchenluMemorialCases : [];
 const INTRO_CASE_COUNT = CASES.length;
+const MEMORIAL_QUOTA = 15;
 const GENERATED_CASE_TAG = 'dcl_generated_case';
 const WORLD_CHANGE_TAG = 'dcl_world_change';
 const PANEL_URL = new URL('./panel.html', import.meta.url);
@@ -14,7 +15,12 @@ const REGISTRY_LIMIT = 60;
 const EDGES_LIMIT = 100;
 const FACTIONS_LIMIT = 10;
 const MAP_NODES_LIMIT = 16;
-const EDGE_TYPES = new Set(['patron', 'cohort', 'kin', 'hostile', 'family']);
+const EDGE_TYPES = new Set(['patron', 'cohort', 'kin', 'hostile', 'family', 'case']);
+const EDGE_LABELS = Object.freeze({
+  patron: '荐举/门生', cohort: '同年/同僚', kin: '姻亲/宗族', hostile: '攻讦/弹劾', family: '家眷', case: '同案具折',
+});
+const HAREM_DAILY_LIMIT = 2;
+const HAREM_ACTION_TYPES = new Set(['summon', 'visit', 'dine']);
 const PERSON_KINDS = new Set(['official', 'family', 'harem', 'case']);
 const SEVERITY_LEVELS = ['高', '中', '低'];
 const DYNAMIC_FACTION_COLORS = ['#6f8f6a', '#8a5f8f', '#5f7f8f', '#8f7a5f', '#7a8f5f', '#8f5f6a', '#5f8f85', '#8f6f5f'];
@@ -30,6 +36,38 @@ const PROVINCE_ZONES = Object.freeze({
   '江南': { x: 72, y: 53 },
   '湖广': { x: 40, y: 73 },
   '岭南': { x: 61, y: 78 },
+});
+
+const CITY_GRID = [
+  { id: 'jingshi', name: '京师', zone: '京畿', region: '京畿道·京师', x: 53.5, y: 40 },
+  { id: 'zhuozhou', name: '涿州', zone: '京畿', region: '京畿道·涿州', x: 61, y: 35 },
+  { id: 'lanzhou', name: '兰州', zone: '陇右', region: '陇右道·兰州', x: 20, y: 42 },
+  { id: 'qinzhou', name: '秦州', zone: '陇右', region: '陇右道·秦州', x: 28, y: 50 },
+  { id: 'liangzhou', name: '凉州', zone: '河西', region: '河西道·凉州', x: 35, y: 26 },
+  { id: 'ganzhou', name: '甘州', zone: '河西', region: '河西道·甘州', x: 43, y: 22 },
+  { id: 'dunhuang', name: '敦煌', zone: '西陲', region: '西陲道·敦煌', x: 22, y: 24 },
+  { id: 'yumen', name: '玉门', zone: '西陲', region: '西陲道·玉门', x: 30, y: 18 },
+  { id: 'kaifeng', name: '开封', zone: '中州', region: '中州道·开封', x: 47, y: 54 },
+  { id: 'luoyang', name: '洛阳', zone: '中州', region: '中州道·洛阳', x: 41, y: 50 },
+  { id: 'jinan', name: '济南', zone: '山东', region: '山东道·济南', x: 65, y: 29 },
+  { id: 'qingzhou', name: '青州', zone: '山东', region: '山东道·青州', x: 72, y: 25 },
+  { id: 'jiangning', name: '江宁', zone: '江东', region: '江东道·江宁', x: 76, y: 45 },
+  { id: 'suzhou', name: '苏州', zone: '江东', region: '江东道·苏州', x: 83, y: 42 },
+  { id: 'yangzhou', name: '扬州', zone: '江南', region: '江南道·扬州', x: 70, y: 52 },
+  { id: 'hangzhou', name: '杭州', zone: '江南', region: '江南道·杭州', x: 78, y: 58 },
+  { id: 'wuchang', name: '武昌', zone: '湖广', region: '湖广道·武昌', x: 42, y: 71 },
+  { id: 'changsha', name: '长沙', zone: '湖广', region: '湖广道·长沙', x: 34, y: 78 },
+  { id: 'guangzhou', name: '广州', zone: '岭南', region: '岭南道·广州', x: 62, y: 80 },
+  { id: 'guilin', name: '桂林', zone: '岭南', region: '岭南道·桂林', x: 54, y: 84 },
+];
+
+const MEMORIAL_CATEGORIES = Object.freeze({
+  report: { label: '报告', icon: '报' },
+  accuse: { label: '检举', icon: '劾' },
+  merit: { label: '请功', icon: '功' },
+  routine: { label: '日常', icon: '常' },
+  flatter: { label: '奉承', icon: '颂' },
+  tribute: { label: '进献', icon: '献' },
 });
 
 const PROVINCES = [
@@ -214,6 +252,10 @@ const DEFAULT_STATE = Object.freeze({
   casualties: { officials: [], harem: [] },
   harem: { selectedId: 'empress', visits: {}, log: [], removed: [] },
   freeplay: { awaiting: false, pendingDay: null, lastError: '', generatedCount: 0 },
+  memorials: [],
+  archive: [],
+  selectedCity: null,
+  selectedOfficial: null,
   activeId: CASES[0]?.memorials?.[0]?.id ?? null,
   filter: 'all',
   view: 'map',
@@ -237,6 +279,10 @@ let dragState = null;
 let panelResizeTimer = 0;
 let profileEditorTarget = null;
 let selectedOfficialRef = '0';
+let officialActionName = '';
+let rosterKind = 'rank';
+let edgeTargetName = '';
+let rosterDetail = false;
 
 const MOBILE_LAYOUT = '(max-width: 820px)';
 const PANEL_EDGE_GAP = 10;
@@ -295,6 +341,14 @@ function normalizeState(input) {
     officials: Array.isArray(state.casualties?.officials) ? [...new Set(state.casualties.officials.map(name => cleanGeneratedText(name, 40)).filter(Boolean))] : [],
     harem: Array.isArray(state.casualties?.harem) ? [...new Set(state.casualties.harem.map(name => cleanGeneratedText(name, 40)).filter(Boolean))] : [],
   };
+  const rawMemorials = Array.isArray(state.memorials) && state.memorials.length
+    ? state.memorials
+    : (sourceVersion < 6 ? initialMemorialsFromCases() : []);
+  base.memorials = normalizeMemorials(rawMemorials, base.day);
+  base.archive = Array.isArray(state.archive) ? state.archive.filter(item => item && typeof item === 'object').slice(-80) : [];
+  const validCityIds = new Set([...CITY_GRID.map(city => city.id), ...(base.mapNodes ?? []).map(node => node.id)]);
+  base.selectedCity = typeof state.selectedCity === 'string' && validCityIds.has(state.selectedCity) ? state.selectedCity : null;
+  base.selectedOfficial = typeof state.selectedOfficial === 'string' ? state.selectedOfficial.slice(0, 40) : null;
   base.worldLog = Array.isArray(state.worldLog)
     ? state.worldLog
         .filter(entry => entry && typeof entry === 'object')
@@ -310,9 +364,13 @@ function normalizeState(input) {
         .filter(entry => entry.messageId !== null && entry.fingerprint)
         .slice(-40)
     : [];
-  const activeCase = base.phase === 'freeplay' ? base.dynamicCase : CASES[base.caseIndex];
-  const validMemorialIds = new Set(activeCase?.memorials?.map(item => item.id) ?? []);
-  base.activeId = typeof state.activeId === 'string' && validMemorialIds.has(state.activeId) ? state.activeId : activeCase?.memorials?.[0]?.id ?? null;
+  const currentMemorialIds = new Set(base.memorials.map(item => item.id));
+  const allMemorialIds = new Set([
+    ...CASES.flatMap(caseItem => caseItem.memorials.map(memorial => memorial.id)),
+    ...(base.dynamicCase?.memorials?.map(memorial => memorial.id) ?? []),
+    ...base.memorials.map(item => item.id),
+  ]);
+  base.activeId = typeof state.activeId === 'string' && currentMemorialIds.has(state.activeId) ? state.activeId : base.memorials[0]?.id ?? null;
   base.filter = ['all', 'formal', 'secret'].includes(state.filter) ? state.filter : 'all';
   base.view = ['map', 'desk', 'officials', 'harem', 'profiles', 'factions', 'archive'].includes(state.view) ? state.view : 'map';
   base.open = state.open === true;
@@ -320,15 +378,15 @@ function normalizeState(input) {
   base.stats.treasury = clampInt(state.stats?.treasury, 0, 100, 54);
   base.stats.stability = clampInt(state.stats?.stability, 0, 100, 58);
   base.reviewed = Object.fromEntries(Object.entries(plainRecord(state.reviewed))
-    .filter(([id, value]) => validMemorialIds.has(id) && value === true));
+    .filter(([id, value]) => allMemorialIds.has(id) && value === true));
   base.replies = Object.fromEntries(Object.entries(plainRecord(state.replies))
-    .filter(([id, value]) => validMemorialIds.has(id) && typeof value === 'string')
+    .filter(([id, value]) => allMemorialIds.has(id) && typeof value === 'string')
     .map(([id, value]) => [id, value.slice(0, 80)]));
   const storedDispatched = Object.fromEntries(Object.entries(plainRecord(state.dispatched))
-    .filter(([id, value]) => validMemorialIds.has(id) && value === true));
+    .filter(([id, value]) => allMemorialIds.has(id) && value === true));
   base.dispatched = sourceVersion < 2 ? deepClone(base.reviewed) : storedDispatched;
   base.doubts = [...new Set(Array.isArray(state.doubts)
-    ? state.doubts.filter(id => typeof id === 'string' && validMemorialIds.has(id))
+    ? state.doubts.filter(id => typeof id === 'string' && allMemorialIds.has(id))
     : [])].slice(-30);
   base.history = Array.isArray(state.history) ? state.history.filter(x => x && typeof x === 'object').slice(-12) : [];
   const registryHaremIds = new Set(base.peopleRegistry.filter(item => item.kind === 'harem').map(item => item.name));
@@ -347,10 +405,10 @@ function normalizeState(input) {
     .map(([id, value]) => [id, {
       count: clampInt(value.count, 0, 9999, 0),
       lastDay: value.lastDay === null || value.lastDay === undefined ? null : clampInt(value.lastDay, 1, 9999, null),
-      lastType: ['summon', 'dine'].includes(value.lastType) ? value.lastType : null,
+      lastType: HAREM_ACTION_TYPES.has(value.lastType) ? value.lastType : null,
     }]));
   base.harem.log = (Array.isArray(state.harem?.log) ? state.harem.log : [])
-    .filter(item => item && allowedConsortIds.has(item.consortId) && ['summon', 'dine'].includes(item.type))
+    .filter(item => item && allowedConsortIds.has(item.consortId) && HAREM_ACTION_TYPES.has(item.type))
     .map(item => ({ day: clampInt(item.day, 1, 9999, 1), consortId: item.consortId, type: item.type }))
     .slice(-12);
   base.profileOverrides = normalizeProfileOverrides(state.profileOverrides);
@@ -375,17 +433,23 @@ function normalizeGeneratedCase(value, day) {
   if (rawMemorials.length < 3) return null;
   const memorials = rawMemorials.map((item, index) => {
     const type = item?.type === 'secret' ? 'secret' : 'formal';
+    const category = MEMORIAL_CATEGORIES[item?.category] ? item.category : 'report';
     const body = (Array.isArray(item?.body) ? item.body : [item?.body]).slice(0, 3)
       .map(part => cleanGeneratedText(part, 700)).filter(Boolean);
     if (!body.length) body.push('此折正文残缺，须命通政司补录原件。');
+    const region = cleanGeneratedText(item?.region, 60) || '京师';
+    const cityMatch = CITY_GRID.find(city => region.includes(city.name) || region.includes(city.region));
     return {
       id: `free-${clampInt(day, 1, 9999, 1)}-${index + 1}`,
       type,
-      region: cleanGeneratedText(item?.region, 60) || '京师',
+      category,
+      region,
+      cityId: cleanGeneratedText(item?.cityId, 40) || cityMatch?.id || null,
       title: cleanGeneratedText(item?.title, 80) || `第${index + 1}道待核奏折`,
       lead: cleanGeneratedText(item?.lead, 100) || '案情待核',
       sender: cleanGeneratedText(item?.sender, 40) || '通政司代呈',
       office: cleanGeneratedText(item?.office, 60) || '官职待核',
+      faction: cleanGeneratedText(item?.faction, 30) || '',
       date: cleanGeneratedText(item?.date, 30) || `第${day}日`,
       time: cleanGeneratedText(item?.time, 30) || '辰时入递',
       body,
@@ -431,6 +495,55 @@ function normalizeGeneratedCase(value, day) {
     memorials,
     generated: true,
   };
+}
+
+function normalizeMemorials(value, day) {
+  const source = Array.isArray(value) ? value : [];
+  return source.map((item, index) => {
+    const type = item?.type === 'secret' ? 'secret' : 'formal';
+    const category = MEMORIAL_CATEGORIES[item?.category] ? item.category : 'report';
+    const body = (Array.isArray(item?.body) ? item.body : [item?.body]).slice(0, 3)
+      .map(part => cleanGeneratedText(part, 700)).filter(Boolean);
+    if (!body.length) body.push('此折正文残缺，须命通政司补录原件。');
+    const region = cleanGeneratedText(item?.region, 60) || '京师';
+    const cityMatch = CITY_GRID.find(city => region.includes(city.name) || region.includes(city.region));
+    return {
+      id: cleanGeneratedText(item?.id, 60) || `mem-${clampInt(day, 1, 9999, 1)}-${index + 1}`,
+      type,
+      category,
+      region,
+      cityId: cleanGeneratedText(item?.cityId, 40) || cityMatch?.id || null,
+      title: cleanGeneratedText(item?.title, 80) || `第${index + 1}道待核奏折`,
+      lead: cleanGeneratedText(item?.lead, 100) || '事由待核',
+      sender: cleanGeneratedText(item?.sender, 40) || '通政司代呈',
+      office: cleanGeneratedText(item?.office, 60) || '官职待核',
+      faction: cleanGeneratedText(item?.faction, 30) || '',
+      date: cleanGeneratedText(item?.date, 30) || `第${day}日`,
+      time: cleanGeneratedText(item?.time, 30) || '辰时入递',
+      body,
+      cabinet: type === 'secret' ? null : cleanGeneratedText(item?.cabinet, 180) || '拟请圣裁。',
+      reveal: [...new Set((Array.isArray(item?.reveal) ? item.reveal : []).map(raw => clampInt(raw, 0, 7, 0)))].slice(0, 5),
+      suspicious: item?.suspicious === true,
+      effects: item?.effects && typeof item.effects === 'object' ? item.effects : {
+        '阅': [0, 0, -1], '知道了': [0, 0, 0], '依议': [1, -2, 0], '着查': [2, -1, 1],
+      },
+    };
+  });
+}
+
+function initialMemorialsFromCases() {
+  const cityByCase = { river: 'zhuozhou', frontier: 'liangzhou', salt: 'yangzhou' };
+  const categoryByCase = {
+    river: ['report', 'accuse', 'accuse', 'report', 'report'],
+    frontier: ['report', 'accuse', 'report', 'accuse', 'report'],
+    salt: ['report', 'accuse', 'report', 'accuse', 'report'],
+  };
+  return CASES.flatMap(caseItem => caseItem.memorials.map((memorial, index) => ({
+    ...memorial,
+    category: categoryByCase[caseItem.id]?.[index] ?? 'report',
+    cityId: cityByCase[caseItem.id] ?? null,
+    effects: memorial.effects ?? { '阅': [0, 0, -1], '知道了': [0, 0, 0], '依议': [1, -2, 0], '着查': [2, -1, 1] },
+  })));
 }
 
 function extractWorldChanges(value, day) {
@@ -571,6 +684,63 @@ function mergeDynamicWorld(state, world, day) {
   };
 }
 
+function ensureKnownFaction(state, factionName, day) {
+  const name = cleanGeneratedText(factionName, 30);
+  if (!name || name === '未定') return;
+  const known = ['清流', '务实', '勋贵', '内廷'].includes(name)
+    || (state.dynamicFactions ?? []).some(item => item.name === name);
+  if (known) return;
+  state.dynamicFactions = normalizeDynamicFactions([...(state.dynamicFactions ?? []), {
+    name,
+    description: '新起党派，主张随朝局与剧情逐步成形。',
+    members: [],
+    rivals: [],
+    influence: 20,
+    day,
+  }], day);
+}
+
+function registerMemorialSenders(state, memorials, day) {
+  const staticNames = new Set(OFFICIALS.map(person => person.name));
+  const additions = [];
+  (Array.isArray(memorials) ? memorials : []).forEach(item => {
+    const name = cleanGeneratedText(item?.sender, 40);
+    if (!name || name === '通政司代呈' || staticNames.has(name)) return;
+    const faction = cleanGeneratedText(item?.faction, 30) || '未定';
+    const existing = (state.peopleRegistry ?? []).find(person => person.name === name);
+    if (existing) {
+      existing.lastSeenDay = Math.max(existing.lastSeenDay ?? day, day);
+      if (existing.faction === '未定' && faction !== '未定') {
+        existing.faction = faction;
+        ensureKnownFaction(state, faction, day);
+      }
+      return;
+    }
+    additions.push({
+      kind: 'official',
+      name,
+      office: cleanGeneratedText(item?.office, 60) || '官职待核',
+      rank: '品秩待核',
+      faction,
+      origin: '',
+      role: '具折陈奏',
+      reputation: '风评未显',
+      publicFace: '新见于奏折，其行事形象随后续剧情逐步显露。',
+      core: '',
+      motive: '',
+      fear: '',
+      knows: '只知道本人亲见、经手与官职范围内的事务。',
+      voice: '依官职与处境自然陈奏，区分事实、推断与传闻。',
+      firstSeenDay: day,
+      lastSeenDay: day,
+    });
+  });
+  if (additions.length) {
+    state.peopleRegistry = normalizeRegistryPeople([...(state.peopleRegistry ?? []), ...additions], day);
+  }
+  additions.forEach(item => ensureKnownFaction(state, item.faction, day));
+}
+
 function normalizeProfileOverrides(value) {
   const source = plainRecord(value);
   return Object.fromEntries(Object.keys(PROFILE_DEFAULTS).map(type => {
@@ -638,8 +808,18 @@ function persistState(state) {
 }
 
 function currentCase(state = getState()) {
-  if (state.phase === 'freeplay' && state.dynamicCase) return state.dynamicCase;
-  return CASES[state.caseIndex] ?? CASES[0];
+  const memorials = state.memorials?.length ? state.memorials : initialMemorialsFromCases();
+  return {
+    id: `court-day-${state.day}`,
+    title: `承熙朝第${state.day}日御案`,
+    summary: '通政司汇入各地奏折，待御前批阅。',
+    rumor: '',
+    clues: memorials.flatMap(item => item.reveal ?? []).slice(0, 8),
+    contradiction: '各折真伪与轻重须由御前依证据裁断。',
+    people: memorials.map(item => ({ name: item.sender, office: item.office, stance: '具折陈奏', tone: 'neutral' })),
+    memorials,
+    generated: true,
+  };
 }
 
 function currentMemorial(state = getState()) {
@@ -705,6 +885,18 @@ function selectedConsort(state = getState()) {
 
 function visitRecord(state, consortId) {
   return state.harem.visits[consortId] ?? { count: 0, lastDay: null, lastType: null };
+}
+
+function haremDailyCount(state) {
+  return (state.harem.log ?? []).filter(item => item.day === state.day).length;
+}
+
+function haremExhausted(state) {
+  return haremDailyCount(state) >= HAREM_DAILY_LIMIT;
+}
+
+function haremActedToday(state, consortId) {
+  return (state.harem.log ?? []).some(item => item.day === state.day && item.consortId === consortId);
 }
 
 function assetUrl(file) {
@@ -872,6 +1064,9 @@ async function openPanel() {
 function closePanel() {
   const root = document.getElementById('danchenlu-root');
   if (!root) return;
+  document.getElementById('dcl-summary-dialog')?.close();
+  document.getElementById('dcl-faction-dialog')?.close();
+  document.getElementById('dcl-manage-dialog')?.close();
   root.classList.add('dcl-hidden');
   root.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = bodyOverflowBefore;
@@ -886,6 +1081,10 @@ function bindPanelEvents() {
     if (archiveCard) return toggleArchive(archiveCard);
     const factionTarget = event.target.closest('[data-faction]');
     if (factionTarget) return openFactionDetail(factionTarget.dataset.faction);
+    const egoRef = event.target.closest('[data-ego-ref]');
+    if (egoRef) return selectRosterPerson(egoRef.dataset.egoRef);
+    const egoFamily = event.target.closest('[data-ego-family]');
+    if (egoFamily) return selectFamilyMemberDossier(Number(egoFamily.dataset.egoFamily));
     const button = event.target.closest('button');
     if (!button || !root.contains(button)) return;
     if (button.dataset.action === 'close') return closePanel();
@@ -902,13 +1101,34 @@ function bindPanelEvents() {
     if (button.dataset.relation) return filterRelations(button.dataset.relation);
     if (button.dataset.faction !== undefined) return openFactionDetail(button.dataset.faction);
     if (button.dataset.factionSwitch) return openFactionDetail(button.dataset.factionSwitch);
+    if (button.dataset.rosterKind) return setRosterKind(button.dataset.rosterKind);
+    if (button.dataset.rosterPerson) return selectRosterPerson(button.dataset.rosterPerson);
+    if (button.dataset.backRoster) {
+      rosterDetail = false;
+      renderOfficials();
+      return;
+    }
+    if (button.dataset.addEdge) return openEdgeDialog(button.dataset.addEdge);
+    if (button.dataset.removeEdge !== undefined) return removeDynamicEdge(Number(button.dataset.removeEdge));
+    if (button.dataset.backOfficial) {
+      renderOfficials();
+      return;
+    }
+    if (button.dataset.official) return openOfficialActions(button.dataset.official);
+    if (button.dataset.officialMemorial !== undefined) return chooseOfficialMemorial();
+    if (button.dataset.officialBio !== undefined) return chooseOfficialBiography();
+    if (button.dataset.backOfficials) {
+      const state = getState();
+      state.selectedOfficial = null;
+      state.view = 'map';
+      persistState(state);
+      renderAll();
+      return;
+    }
     if (button.dataset.person !== undefined) return selectOfficial(button.dataset.person);
-    if (button.dataset.familyMember !== undefined) return selectFamilyMember(Number(button.dataset.familyMember));
+    if (button.dataset.familyMember !== undefined) return selectFamilyMemberDossier(Number(button.dataset.familyMember));
     if (button.dataset.openFamily !== undefined) return renderFamilyNetwork(Number(button.dataset.openFamily));
     switch (button.dataset.action) {
-      case 'routes': toggleRoutes(button); break;
-      case 'heat': toggleHeat(button); break;
-      case 'reset-map': selectCase(CASES[0]?.id); break;
       case 'toggle-fold': toggleFold(); break;
       case 'doubt': toggleDoubt(); break;
       case 'submit': submitVerdict(); break;
@@ -918,10 +1138,14 @@ function bindPanelEvents() {
       case 'faction-close': closeFactionDetail(); break;
       case 'manage-harem': openManageDialog(); break;
       case 'manage-close': document.getElementById('dcl-manage-dialog')?.close(); break;
+      case 'official-close': closeOfficialActions(); break;
+      case 'edge-close': closeEdgeDialog(); break;
+      case 'edge-save': saveEdge(); break;
+      case 'sleep': sleepToNextDay(); break;
       case 'toggle-invasion': toggleInvasion(); break;
       case 'remove-harem': removeHaremMember(button.dataset.name); break;
       case 'restore-harem': restoreHaremMember(button.dataset.name); break;
-      case 'next-day': await nextDay(); break;
+      case 'next-day': autoRefillMemorials(getState()); break;
       case 'export-profiles': exportProfiles(); break;
       case 'import-profiles': root.querySelector('#dcl-profile-import')?.click(); break;
       case 'upload-portrait': root.querySelector('#dcl-portrait-import')?.click(); break;
@@ -971,9 +1195,7 @@ function bindPanelEvents() {
   });
 
   root.querySelector('#dcl-official-search').addEventListener('input', event => {
-    root.querySelectorAll('.dcl-person-node').forEach(node => {
-      node.classList.toggle('search-muted', Boolean(event.target.value) && !node.dataset.name.includes(event.target.value));
-    });
+    applyOfficialSearch(event.target.value);
   });
 
   document.addEventListener('keydown', event => {
@@ -1069,7 +1291,7 @@ function switchView(view) {
   state.view = view;
   persistState(state);
   renderView();
-  if (view === 'officials') renderNetwork();
+  if (view === 'officials') renderOfficials();
   if (view === 'harem') renderHarem();
   if (view === 'profiles') renderProfiles();
   if (view === 'factions') renderFactions();
@@ -1104,31 +1326,18 @@ function selectMemorial(id) {
 }
 
 function selectCase(caseId) {
-  const current = getState();
-  if (current.phase === 'freeplay') {
-    toast('引子案已归档，请在案牍中回看');
+  const city = CITY_GRID.find(item => item.id === caseId);
+  if (city) {
+    selectMapNode(city.id);
     return;
   }
-  const index = CASES.findIndex(item => item.id === caseId);
-  if (index < 0) return;
   const state = getState();
-  state.caseIndex = index;
-  state.activeId = CASES[index].memorials[0].id;
-  state.view = 'map';
+  state.selectedCity = null;
+  state.activeId = state.memorials?.[0]?.id ?? null;
+  state.view = 'desk';
   state.open = false;
   persistState(state);
   renderAll();
-}
-
-function toggleRoutes(button) {
-  document.querySelector('#danchenlu-root .dcl-routes')?.classList.toggle('hidden');
-  button.classList.toggle('active');
-}
-
-function toggleHeat(button) {
-  document.getElementById('dcl-map-frame')?.classList.toggle('heat');
-  button.classList.toggle('active');
-  toast('已切换案情热度');
 }
 
 function toggleFold() {
@@ -1140,6 +1349,10 @@ function toggleFold() {
 
 function setReply(reply) {
   const state = getState();
+  if (haremExhausted(state)) {
+    toast('今日已宠幸两次，御案锁定，不可批阅。');
+    return;
+  }
   if (state.dispatched[state.activeId]) return;
   const textarea = document.getElementById('dcl-custom-reply');
   textarea.value = reply;
@@ -1149,6 +1362,10 @@ function setReply(reply) {
 
 function toggleDoubt() {
   const state = getState();
+  if (haremExhausted(state)) {
+    toast('今日已宠幸两次，御案锁定，不可批阅。');
+    return;
+  }
   if (state.dispatched[state.activeId]) return;
   const set = new Set(state.doubts);
   if (set.has(state.activeId)) set.delete(state.activeId); else set.add(state.activeId);
@@ -1168,6 +1385,10 @@ function verdictEffect(memorial, reply) {
 
 function submitVerdict() {
   const state = getState();
+  if (haremExhausted(state)) {
+    toast('今日已宠幸两次，御案锁定，不可批阅。');
+    return;
+  }
   const memorial = currentMemorial(state);
   const textarea = document.getElementById('dcl-custom-reply');
   const reply = textarea.value.trim();
@@ -1225,38 +1446,43 @@ function renderSummary() {
 
   const sendButton = document.getElementById('dcl-batch-send');
   const nextButton = document.getElementById('dcl-next-day');
+  const shortage = Math.max(0, MEMORIAL_QUOTA - (state.memorials?.length ?? 0));
   if (sendButton) {
-    sendButton.disabled = pending.length === 0;
-    sendButton.textContent = pending.length ? `发送待发御批（${pending.length}）` : '没有待发御批';
+    const locked = haremExhausted(state);
+    sendButton.disabled = locked || pending.length === 0;
+    sendButton.textContent = locked ? '御案已锁' : pending.length ? `发送待发御批（${pending.length}）` : '没有待发御批';
   }
+  if (haremExhausted(state)) summary.textContent += ' 今日宠幸已满两次，御案锁定；可在桌案处就寝，进入次日后重新计算。';
   if (nextButton) {
-    nextButton.hidden = sent.length !== memorials.length;
+    nextButton.hidden = true;
     nextButton.disabled = state.freeplay.awaiting;
-    const entersFreeplay = state.phase === 'intro' && state.caseIndex === INTRO_CASE_COUNT - 1;
     nextButton.textContent = state.freeplay.awaiting
-      ? '通政司正在汇编新折…'
+      ? `通政司正在补足新折（缺 ${shortage} 本）…`
       : state.freeplay.lastError
-        ? '重新生成翌日奏折'
-        : entersFreeplay || state.phase === 'freeplay'
-          ? '生成翌日新折'
-          : '翌日再览';
+        ? '重新补折'
+        : shortage > 0 ? `补足新折（缺 ${shortage} 本）` : '御案已足';
   }
   if (state.freeplay.lastError) summary.textContent += ` 上次生成未收录：${state.freeplay.lastError}。`;
 }
 
 async function sendPendingVerdicts() {
   const state = getState();
+  if (haremExhausted(state)) {
+    toast('今日已宠幸两次，御案锁定，不可发送御批。');
+    renderSummary();
+    return;
+  }
   const caseItem = currentCase(state);
   const pending = caseItem.memorials.filter(item => state.reviewed[item.id] && !state.dispatched[item.id] && state.replies[item.id]);
   if (!pending.length) return;
 
-  const message = [
+  const visible = [
     `【御前汇总朱批｜${caseItem.title}】`,
     ...pending.map((item, index) => `${index + 1}. 《${item.title}》：${state.replies[item.id]}${state.doubts.includes(item.id) ? '（留中存疑，相关文册不得销毁）' : ''}`),
-    '以上御批一并发下。请综合呈现这些旨意相互作用后的即时朝堂反应、相关官员的真实行动与一项尚未解决的新线索；不要逐条机械复述，也不要替朕追加决定。',
   ].join('\n');
+  const instruction = '以上御批一并发下。请综合呈现这些旨意相互作用后的即时朝堂反应、相关官员的真实行动与一项尚未解决的新线索；不要逐条机械复述，也不要替朕追加决定。';
 
-  await sendUserAction(message, () => {
+  await sendUserAction(visible, () => {
     const committed = getState();
     pending.forEach(item => {
       if (committed.dispatched[item.id]) return;
@@ -1266,11 +1492,33 @@ async function sendPendingVerdicts() {
       ['authority', 'treasury', 'stability'].forEach((key, index) => {
         committed.stats[key] = clampInt(committed.stats[key] + effect[index], 0, 100, committed.stats[key]);
       });
+      committed.archive.unshift({
+        day: committed.day,
+        dispatchedDay: committed.day,
+        type: item.type,
+        category: item.category,
+        region: item.region,
+        cityId: item.cityId,
+        title: item.title,
+        lead: item.lead,
+        sender: item.sender,
+        office: item.office,
+        date: item.date,
+        time: item.time,
+        body: item.body,
+        cabinet: item.cabinet,
+        reply,
+        doubted: Boolean(committed.doubts.includes(item.id)),
+        stats: deepClone(committed.stats),
+      });
     });
+    committed.archive = committed.archive.slice(0, 80);
+    committed.memorials = committed.memorials.filter(item => !committed.dispatched[item.id]);
     persistState(committed);
     renderAll();
     renderSummary();
-  }, buildCaseProfileContext(caseItem, pending));
+  }, buildCaseProfileContext(caseItem, pending), instruction);
+  autoRefillMemorials(getState());
 }
 
 function archiveCurrentDay(state) {
@@ -1284,6 +1532,56 @@ function archiveCurrentDay(state) {
     doubts: caseItem.memorials.filter(item => state.doubts.includes(item.id)).length,
     stats: deepClone(state.stats),
   };
+}
+
+function autoRefillMemorials(previous) {
+  const state = getState();
+  const shortage = Math.max(0, MEMORIAL_QUOTA - (state.memorials?.length ?? 0));
+  if (shortage <= 0) {
+    state.day += 1;
+    state.activeId = state.memorials?.[0]?.id ?? null;
+    state.reviewed = {};
+    state.replies = {};
+    state.dispatched = {};
+    state.doubts = [];
+    state.open = false;
+    state.view = 'map';
+    persistState(state);
+    if (panelReady) renderAll();
+    return;
+  }
+  state.freeplay.awaiting = true;
+  state.freeplay.pendingDay = state.day + 1;
+  state.freeplay.lastError = '';
+  persistState(state);
+  const visibleMessage = `【通政司制折｜第${state.freeplay.pendingDay}日】御批已发下，请汇编新折补足御案。`;
+  sendUserAction(visibleMessage, null, refillMemorialsRequest(state, shortage), '请严格按照御案制折协议输出结构化新折，用于扩展收录；正文回复可简要说明补折情况，但不得把协议内容当作剧情。').then(sent => {
+    if (!sent) {
+      const failed = getState();
+      failed.freeplay.awaiting = false;
+      failed.freeplay.lastError = '制折请求未成功发送';
+      persistState(failed);
+      renderSummary();
+    }
+  });
+}
+
+function sleepToNextDay() {
+  const state = getState();
+  state.day += 1;
+  state.reviewed = {};
+  state.replies = {};
+  state.dispatched = {};
+  state.doubts = [];
+  state.open = false;
+  state.view = 'map';
+  state.selectedCity = null;
+  state.selectedOfficial = null;
+  state.freeplay.awaiting = false;
+  persistState(state);
+  document.getElementById('dcl-summary-dialog')?.close();
+  renderAll();
+  toast(`第${chineseDay(state.day)}日 · 御前就寝，今日宠幸次数已重新计算`);
 }
 
 function advanceToPresetDay(previous) {
@@ -1316,19 +1614,44 @@ function generatedCaseRequest(state, nextDayNumber) {
 1. 生成3—5道奏折，至少两道在数字、时序、证据或利益上互相冲突；题材可为吏治、科举、漕运、灾荒、外交、宗室、宫务牵动前朝、地方民变、财政或旧案后续，不要机械重演前三案。
 2. 可继续使用既有官员，也可引入新官员；每个人只陈述其实际可能知道的部分。
 3. summary必须是独立可读的案卷简要说明（结案后会进入案牍前情归档供玩家点开回看），contradiction是幕后因果，只用于之后保持一致。
-4. people可继续沿用既有官员（不重复输出完整档案即可），也可引入新人物；新人物建议提供kind（official/family/harem/case）、office、rank、faction、origin、role与publicFace/core/motive/fear/knows/voice。faction使用既有党派名或提出新党派。
-5. relations用于登记新结或改变的人物关系：a、b为人名，type限patron/cohort/kin/hostile/family，label为关系说明；只写确有剧情依据的关系。
+4. people可继续沿用既有官员（不重复输出完整档案即可），也可引入新人物；新人物建议提供kind（official/family/harem/case）、office、rank、faction、origin、role与publicFace/core/motive/fear/knows/voice。faction必须填写：沿用既有党派名（清流、务实、勋贵、内廷或已有新党派），或提出新党派并把新党名同时写进factions；不得留空。memorials中每个新具折人也要写faction，且与people中的党派一致。
+5. relations用于登记新结或改变的人物关系：a、b为人名，type限patron/cohort/kin/hostile/family/case，label为关系说明；每个新人物必须至少给出一条与既有官员的关系（没有深交可写同案具折或同地为官），不得留空。
 6. factions用于提出或更新党派：name、description、members（人名）、rivals（对立派系名，最多4个）、influence（0—100整数）；members只列实际相关人物，rivals只写确有朝堂对立的派系。
 7. nodes用于地图上新增或变动的地点/衙门：name、region（所在道府或衙门）、severity（高/中/低）；尽量与奏折region一致，便于御前按图索卷。
 8. 只输出下面标签包裹的严格JSON，不要代码围栏、解释或额外正文。
 
 <${GENERATED_CASE_TAG}>
-{"title":"当日总案名","summary":"公开摘要","rumor":"朝野传闻","clues":["待查矛盾1","待查矛盾2"],"contradiction":"幕后真实因果","people":[{"name":"姓名","kind":"official","office":"官职","rank":"品秩","faction":"党派","origin":"籍贯","role":"身份职责","reputation":"朝野风评","stance":"本案立场","tone":"neutral","publicFace":"外在行事","core":"内在矛盾","motive":"动机","fear":"所惧","knows":"信息边界","voice":"说话方式"}],"relations":[{"a":"人名甲","b":"人名乙","type":"patron","label":"关系说明"}],"factions":[{"name":"党名","description":"主张","members":["人名"],"influence":30}],"nodes":[{"name":"地点或衙门","region":"道府","severity":"中"}],"memorials":[{"type":"formal","region":"地区或衙门","title":"奏折标题","lead":"事由短句","sender":"具折人","office":"官职","date":"月日","time":"递送时辰","body":["第一段正文","第二段正文"],"cabinet":"题本票拟；密折写空字符串","reveal":[0,1],"suspicious":true}]}
+{"title":"当日总案名","summary":"公开摘要","rumor":"朝野传闻","clues":["待查矛盾1","待查矛盾2"],"contradiction":"幕后真实因果","people":[{"name":"姓名","kind":"official","office":"官职","rank":"品秩","faction":"党派","origin":"籍贯","role":"身份职责","reputation":"朝野风评","stance":"本案立场","tone":"neutral","publicFace":"外在行事","core":"内在矛盾","motive":"动机","fear":"所惧","knows":"信息边界","voice":"说话方式"}],"relations":[{"a":"人名甲","b":"人名乙","type":"patron","label":"关系说明"}],"factions":[{"name":"党名","description":"主张","members":["人名"],"influence":30}],"nodes":[{"name":"地点或衙门","region":"道府","severity":"中"}],"memorials":[{"type":"formal","region":"地区或衙门","title":"奏折标题","lead":"事由短句","sender":"具折人","office":"官职","faction":"党派","date":"月日","time":"递送时辰","body":["第一段正文","第二段正文"],"cabinet":"题本票拟；密折写空字符串","reveal":[0,1],"suspicious":true}]}
 </${GENERATED_CASE_TAG}>
 
 ${worldContext}
 刚结案：《${caseItem.title}》；${caseItem.summary}
 近期归档：\n${recent}`;
+}
+
+function refillMemorialsRequest(state, count) {
+  const recent = state.archive.slice(-6).map(item => `第${item.day}日《${item.title}》：${item.reply ?? '无批'}`).join('\n') || '尚无归档奏折';
+  const cityList = CITY_GRID.map(city => `${city.name}（${city.region}）`).join('、');
+  const categoryList = Object.entries(MEMORIAL_CATEGORIES).map(([key, meta]) => `${meta.label}`).join('、');
+  const occupiedCities = new Set((state.memorials ?? []).map(item => item.cityId).filter(Boolean));
+  const remainingCities = CITY_GRID.filter(city => !occupiedCities.has(city.id)).slice(0, count);
+  const preferredCities = remainingCities.map(city => city.name).join('、') || '京师、凉州、扬州';
+  return `【御案补折｜第${state.freeplay.pendingDay}日】请生成${count}道新奏折补足御案，使御前始终保有${MEMORIAL_QUOTA}本待批。
+
+要求：
+1. 每道奏折必须绑定一个城市，题材与官员从该城出发：禀报当地政情、钱粮、灾情、刑名、漕运、盐务、边事或人情。优先从未有奏折的城市取材：${preferredCities}。
+2. 内容类型从以下任选，尽量多样：${categoryList}。报告为寻常禀报；检举为弹劾攻讦；请功为请奖叙功；日常为请安、贺节、例行公事；奉承为颂圣献媚；进献为贡物献礼。可续用既有官员，也可引入新官员。
+3. 每人只陈述其实际可能知道的部分；数字、时序、经手人可相互印证或冲突；不给正确答案。
+4. 新具折人必须在faction给出党派：沿用清流、务实、勋贵、内廷或既有新党派，也可提出新党名；党派须与该官员官职、立场和折子内容相符，不得留空。
+5. 若引入新官员，须在relations中给出其与既有官员至少一条关系（type限patron/cohort/kin/hostile/family/case，label为关系说明）；没有明确剧情关系可写同案具折。
+6. 只输出下面标签包裹的严格JSON，不要代码围栏、解释或额外正文。
+
+<${GENERATED_CASE_TAG}>
+{"memorials":[{"type":"formal","category":"report","region":"城市名","title":"奏折标题","lead":"事由短句","sender":"具折人","office":"官职","faction":"党派","date":"月日","time":"递送时辰","body":["第一段正文","第二段正文"],"cabinet":"题本票拟；密折写空字符串","reveal":[0,1],"suspicious":false}],"relations":[{"a":"人名甲","b":"人名乙","type":"cohort","label":"同案具折"}]}
+</${GENERATED_CASE_TAG}>
+
+可用城市：${cityList}。
+刚发下御批的奏折：${recent}。`;
 }
 
 function generatedWorldContext(state) {
@@ -1359,8 +1682,8 @@ async function requestGeneratedDay(previous) {
   state.freeplay.lastError = '';
   persistState(state);
   renderSummary();
-  const visibleMessage = `【通政司制折｜第${state.freeplay.pendingDay}日】前三卷引子已毕，请依据当前朝局与既有后果，汇编翌日送达御前的新折。`;
-  const sent = await sendUserAction(visibleMessage, null, generatedCaseRequest(previous, state.freeplay.pendingDay));
+  const visibleMessage = `【通政司制折｜第${state.freeplay.pendingDay}日】请依据当前朝局与既有后果，汇编翌日送达御前的新折。`;
+  const sent = await sendUserAction(visibleMessage, null, generatedCaseRequest(previous, state.freeplay.pendingDay), '请严格按照御案制折协议输出结构化新折，用于扩展收录；正文回复可简要说明制折情况，但不得把协议内容当作剧情。');
   if (!sent) {
     const failed = getState();
     failed.freeplay.awaiting = false;
@@ -1591,18 +1914,25 @@ function handleGeneratedCaseMessage(messageId) {
     if (panelReady) renderAll();
     return;
   }
+  if (!String(message ?? '').includes(`<${GENERATED_CASE_TAG}>`)) {
+    if (panelReady) renderAll();
+    return;
+  }
   try {
     const parsed = extractGeneratedCase(message);
-    const nextCase = normalizeGeneratedCase(parsed, state.freeplay.pendingDay);
-    if (!nextCase) throw new Error('案卷少于三道有效奏折');
-    state.history.push(archiveCurrentDay(state));
-    state.history = state.history.slice(-12);
+    const isRefill = (state.memorials?.length ?? 0) > 0 || state.freeplay.pendingDay > 3;
+    const refill = isRefill ? normalizeMemorials(parsed.memorials, state.freeplay.pendingDay) : normalizeGeneratedCase(parsed, state.freeplay.pendingDay);
+    if (!refill || (isRefill ? !refill.length : !refill)) throw new Error('未能解析有效奏折');
+    const existingIds = new Set(state.memorials.map(item => item.id));
+    const newMemorials = (isRefill ? refill : (refill.memorials ?? [])).filter(item => !existingIds.has(item.id));
+    if (!newMemorials.length) throw new Error('新折与御案重复');
+    state.memorials = normalizeMemorials([...(state.memorials ?? []), ...newMemorials], state.freeplay.pendingDay);
     state.day = state.freeplay.pendingDay;
     state.phase = 'freeplay';
+    registerMemorialSenders(state, newMemorials, state.freeplay.pendingDay);
     const added = mergeDynamicWorld(state, extractWorldChanges(parsed, state.freeplay.pendingDay), state.freeplay.pendingDay);
     recordWorldLog(state, messageId, added, state.freeplay.pendingDay);
-    state.dynamicCase = nextCase;
-    state.activeId = nextCase.memorials[0].id;
+    state.activeId = state.memorials[0]?.id ?? null;
     state.reviewed = {};
     state.replies = {};
     state.dispatched = {};
@@ -1711,13 +2041,14 @@ function buildCaseProfileContext(caseItem, pending) {
 
 function hiddenContextBlock(contextText) {
   if (!contextText?.trim()) return '';
-  return `<dcl_hidden_context>\n用途：以下为本轮相关人物的当前档案，只用于保持人物一致与信息边界。不得在正文中复述档案、提及此标签或声称看见隐藏信息。\n${safePromptValue(contextText)}\n</dcl_hidden_context>`;
+  return `<dcl_hidden_context>\n用途：以下为本轮御案的隐藏指令与相关档案，只用于指导生成。不得在正文中复述、提及此标签或声称看见隐藏信息。\n${safePromptValue(contextText)}\n</dcl_hidden_context>`;
 }
 
-async function sendUserAction(text, onSent, profileContext = '') {
+async function sendUserAction(text, onSent, profileContext = '', instruction = '') {
   const ctx = context();
   if (!ctx) return false;
-  const hidden = hiddenContextBlock(profileContext);
+  const hiddenParts = [profileContext, instruction].filter(Boolean);
+  const hidden = hiddenContextBlock(hiddenParts.join('\n\n'));
   const outgoingText = hidden ? `${text}\n\n${hidden}` : text;
   let messageSent = false;
   try {
@@ -1753,6 +2084,8 @@ async function sendUserAction(text, onSent, profileContext = '') {
 
 function renderAll() {
   if (!panelReady || !isActiveCard()) return;
+  const root = document.getElementById('danchenlu-root');
+  if (!root || root.classList.contains('dcl-hidden')) return;
   renderHeader();
   renderView();
   renderMemorialList();
@@ -1760,7 +2093,7 @@ function renderAll() {
   renderDocument();
   renderMapSelection();
   renderInvasionToggle();
-  if (getState().view === 'officials') renderNetwork();
+  if (getState().view === 'officials') renderOfficials();
   if (getState().view === 'harem') renderHarem();
   if (getState().view === 'profiles') renderProfiles();
   if (getState().view === 'factions') renderFactions();
@@ -1773,38 +2106,177 @@ function renderHeader() {
   Object.entries(values).forEach(([key, id]) => { document.getElementById(id).textContent = state.stats[key]; });
   document.getElementById('dcl-day-label').textContent = `第${chineseDay(state.day)}日`;
   document.getElementById('dcl-date-label').textContent = `承熙十二年 · ${currentMemorial(state)?.date ?? '三月初七日'}`;
-  document.getElementById('dcl-timeline-current').textContent = `承熙十二年 春 · ${currentCase(state).title}`;
+  document.getElementById('dcl-timeline-current').textContent = `承熙十二年 · ${currentCase(state).title}（待批 ${(state.memorials ?? []).filter(item => !state.reviewed[item.id]).length} 本）`;
 }
 
 function renderMemorialList() {
   const state = getState();
   const root = document.getElementById('danchenlu-root');
   if (!root) return;
-  const list = currentCase(state).memorials.filter(item => state.filter === 'all' || item.type === state.filter);
+  const byCity = (state.selectedCity ? (state.memorials ?? []).filter(item => {
+    const cityId = item.cityId || CITY_GRID.find(city => (item.region ?? '').includes(city.name))?.id;
+    return cityId === state.selectedCity;
+  }) : (state.memorials ?? []));
+  const list = byCity.filter(item => state.filter === 'all' || item.type === state.filter);
   root.querySelectorAll('.dcl-filters button').forEach(button => button.classList.toggle('active', button.dataset.filter === state.filter));
-  document.getElementById('dcl-memorial-list').innerHTML = list.map((item, index) => `
-    <button class="dcl-memorial-card ${item.type} ${item.id === state.activeId ? 'active' : ''} ${state.reviewed[item.id] ? 'reviewed' : ''} ${state.dispatched[item.id] ? 'dispatched' : ''} ${state.doubts.includes(item.id) ? 'doubt' : ''}" data-memorial="${escapeHtml(item.id)}">
-      <span class="dcl-doc-thumb"><i>${item.type === 'secret' ? '御前亲启' : '题本'}</i></span>
-      <span class="dcl-memorial-copy"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.region)} · ${escapeHtml(item.sender)}</small><em>${state.dispatched[item.id] ? '已发下' : state.reviewed[item.id] ? '待发送' : index === 0 ? '紧急' : '待阅'}</em></span>
+  const listEl = document.getElementById('dcl-memorial-list');
+  if (!listEl) return;
+  if (state.selectedCity && !state.selectedOfficial) {
+    const officials = new Map();
+    list.forEach(item => {
+      const key = item.sender || '通政司代呈';
+      if (!officials.has(key)) officials.set(key, { name: key, office: item.office, count: 0 });
+      const entry = officials.get(key);
+      entry.count += 1;
+      if (item.type === 'secret') entry.hasSecret = true;
+      if (state.reviewed[item.id]) entry.reviewed = (entry.reviewed ?? 0) + 1;
+    });
+    const cityName = CITY_GRID.find(c => c.id === state.selectedCity)?.name ?? state.selectedCity;
+    listEl.innerHTML = `<div class="dcl-city-officials">
+      <div class="dcl-city-heading"><b>${escapeHtml(cityName)} · 具折官员</b><small>共 ${officials.size} 人</small></div>
+      ${[...officials.values()].map((person, index) => `
+        <button class="dcl-official-filter" data-official="${escapeHtml(person.name)}">
+          <i>${escapeHtml(person.name.slice(0, 1))}</i>
+          <span><b>${escapeHtml(person.name)}</b><small>${escapeHtml(person.office)}</small></span>
+          <em>${person.count} 折${person.hasSecret ? ' · 含密折' : ''}${person.reviewed ? ` · 已批 ${person.reviewed}` : ''}</em>
+        </button>`).join('')}
+    </div>`;
+    document.getElementById('dcl-review-counter').textContent = `${list.filter(item => state.reviewed[item.id]).length} / ${list.length}`;
+    document.getElementById('dcl-pending-count').textContent = `${list.filter(item => !state.reviewed[item.id]).length} 件`;
+    return;
+  }
+  const backButton = state.selectedCity && state.selectedOfficial
+    ? `<button class="dcl-back-officials" data-back-officials="1"><i>←</i><span>返回 ${escapeHtml(state.selectedOfficial)} 所在官员列表</span></button>`
+    : '';
+  listEl.innerHTML = backButton + list.map((item, index) => `
+    <button class="dcl-memorial-card ${item.type} cat-${item.category} ${item.id === state.activeId ? 'active' : ''} ${state.reviewed[item.id] ? 'reviewed' : ''} ${state.doubts.includes(item.id) ? 'doubt' : ''}" data-memorial="${escapeHtml(item.id)}">
+      <span class="dcl-doc-thumb"><i>${MEMORIAL_CATEGORIES[item.category]?.icon ?? '报'}</i></span>
+      <span class="dcl-memorial-copy"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(MEMORIAL_CATEGORIES[item.category]?.label ?? '报告')} · ${escapeHtml(item.region)} · ${escapeHtml(item.sender)}</small><em>${state.reviewed[item.id] ? '待发送' : index === 0 ? '紧急' : '待阅'}</em></span>
     </button>`).join('');
-  const ids = new Set(currentCase(state).memorials.map(item => item.id));
+  const ids = new Set((state.memorials ?? []).map(item => item.id));
   const reviewed = Object.keys(state.reviewed).filter(id => ids.has(id)).length;
-  document.getElementById('dcl-review-counter').textContent = `${reviewed} / ${currentCase(state).memorials.length}`;
-  document.getElementById('dcl-pending-count').textContent = `${currentCase(state).memorials.length - reviewed} 件`;
+  document.getElementById('dcl-review-counter').textContent = `${reviewed} / ${state.memorials?.length ?? 0}`;
+  document.getElementById('dcl-pending-count').textContent = `${(state.memorials?.length ?? 0) - reviewed} 件`;
+}
+
+function officialLookup(name) {
+  const state = getState();
+  const staticIndex = profileIndexByDefaultName('official', name);
+  if (staticIndex >= 0) {
+    return { person: profileAt('official', staticIndex, state), staticIndex, dynamic: false, ref: String(staticIndex), provisional: false };
+  }
+  const registryIndex = (state.peopleRegistry ?? []).findIndex(item => item.name === name);
+  if (registryIndex >= 0) {
+    const person = state.peopleRegistry[registryIndex];
+    return { person, staticIndex: null, dynamic: true, ref: null, provisional: false };
+  }
+  const memorial = (state.memorials ?? []).find(item => item.sender === name);
+  return {
+    person: memorial
+      ? { name: memorial.sender, office: memorial.office, rank: '品秩待核', faction: '未定', reputation: '风评未显', portrait: '' }
+      : { name, office: '官职待核', rank: '品秩待核', faction: '未定', reputation: '风评未显', portrait: '' },
+    staticIndex: null,
+    dynamic: false,
+    ref: null,
+    provisional: true,
+  };
+}
+
+function openOfficialActions(name) {
+  const info = officialLookup(name);
+  if (!info) return;
+  officialActionName = info.person.name;
+  const { person } = info;
+  const avatar = resolvePortraitUrl(person.portrait, 'official');
+  document.getElementById('dcl-official-dialog-title').textContent = person.name;
+  document.getElementById('dcl-official-dialog-badge').textContent = `${person.rank ?? '品秩待核'} · ${person.office ?? '官职待核'} · ${person.faction ?? '未定'}`;
+  document.getElementById('dcl-official-dialog-body').innerHTML = `
+    <div class="dcl-official-summary">
+      <img src="${avatar}" alt="${escapeHtml(person.name)}立绘" onerror="this.style.visibility='hidden'">
+      <dl>
+        <dt>官职</dt><dd>${escapeHtml(person.office ?? '官职待核')}</dd>
+        <dt>品秩</dt><dd>${escapeHtml(person.rank ?? '品秩待核')}</dd>
+        <dt>党派</dt><dd>${escapeHtml(person.faction ?? '未定')}</dd>
+        <dt>朝野风评</dt><dd>${escapeHtml(person.reputation ?? '风评未显')}</dd>
+      </dl>
+    </div>`;
+  document.getElementById('dcl-official-dialog')?.showModal();
+}
+
+function closeOfficialActions() {
+  document.getElementById('dcl-official-dialog')?.close();
+  officialActionName = '';
+}
+
+function chooseOfficialMemorial() {
+  const name = officialActionName;
+  closeOfficialActions();
+  if (name) selectOfficialFilter(name);
+}
+
+function chooseOfficialBiography() {
+  const name = officialActionName;
+  closeOfficialActions();
+  if (!name) return;
+  showOfficialBiography(name);
+}
+
+function showOfficialBiography(name) {
+  if (name === '通政司代呈') {
+    toast('此折未署具折人，暂无生平可查');
+    return;
+  }
+  const state = getState();
+  const memorial = (state.memorials ?? []).find(item => item.sender === name);
+  if (memorial) registerMemorialSenders(state, [memorial], state.day);
+  const nodes = officialNodeList(getState());
+  const node = nodes.find(item => item.name === name);
+  if (!node) {
+    toast('查无此人档案，暂无法查看生平');
+    return;
+  }
+  selectedOfficialRef = node.ref;
+  rosterDetail = true;
+  switchView('officials');
+  toast(`正在查看 ${name} 的生平档案`);
+}
+
+function selectOfficialFilter(name) {
+  const state = getState();
+  state.selectedOfficial = name || null;
+  const city = state.selectedCity
+    ? CITY_GRID.find(c => c.id === state.selectedCity) ?? state.mapNodes.find(n => n.id === state.selectedCity)
+    : null;
+  const list = (state.memorials ?? []).filter(item => {
+    const cityId = item.cityId || CITY_GRID.find(city => (item.region ?? '').includes(city.name))?.id;
+    return (!city || cityId === city.id) && item.sender === name;
+  });
+  state.activeId = list[0]?.id ?? state.memorials?.[0]?.id ?? null;
+  state.view = list.length ? 'desk' : state.view;
+  state.open = false;
+  persistState(state);
+  renderAll();
 }
 
 function renderIntel() {
   const state = getState();
   const item = currentCase(state);
-  const province = state.phase === 'freeplay'
-    ? { name: '天下奏报', meta: `${item.memorials.length} 道 · AI续写第${state.freeplay.generatedCount}卷`, trend: '开放朝政 · 因果承接', severity: '案情密度：动态' }
-    : PROVINCES[state.caseIndex] ?? PROVINCES[0];
+  const city = state.selectedCity
+    ? CITY_GRID.find(c => c.id === state.selectedCity) ?? state.mapNodes.find(n => n.id === state.selectedCity)
+    : null;
+  const visibleMemorials = (state.selectedCity ? (state.memorials ?? []).filter(item => {
+    const cityId = item.cityId || CITY_GRID.find(city => (item.region ?? '').includes(city.name))?.id;
+    return cityId === state.selectedCity;
+  }) : (state.memorials ?? []));
+  const province = city
+    ? { name: city.name, meta: `${visibleMemorials.length} 道待批`, trend: '按图索折 · 御案汇入', severity: '案情密度：中' }
+    : { name: '天下奏报', meta: `${item.memorials.length} 道待批 · 御案${MEMORIAL_QUOTA}本为限`, trend: '通政司汇折 · 批毕即补', severity: '案情密度：动态' };
   document.getElementById('dcl-province-name').textContent = province.name;
   document.getElementById('dcl-province-meta').textContent = province.meta;
   document.getElementById('dcl-case-trend').textContent = province.trend;
   document.getElementById('dcl-case-severity').textContent = province.severity;
-  document.getElementById('dcl-case-list').innerHTML = item.memorials.slice(0, 3).map((memorial, index) => `
-    <button class="dcl-case-row" data-memorial="${escapeHtml(memorial.id)}"><i>${index ? '中' : '重'}</i><b>${escapeHtml(memorial.title.replace(/[折疏题本]/g, '').slice(0, 11))}</b><small>矛盾线索 ${memorial.reveal.length} 处</small></button>`).join('');
+  document.getElementById('dcl-case-list').innerHTML = visibleMemorials.slice(0, 3).map((memorial, index) => `
+    <button class="dcl-case-row" data-memorial="${escapeHtml(memorial.id)}"><i>${MEMORIAL_CATEGORIES[memorial.category]?.icon ?? '报'}</i><b>${escapeHtml(memorial.title.replace(/[折疏题本]/g, '').slice(0, 11))}</b><small>${escapeHtml(MEMORIAL_CATEGORIES[memorial.category]?.label ?? '报告')}</small></button>`).join('');
   document.getElementById('dcl-official-list').innerHTML = item.people.map((person, index) => {
     const staticIndex = profileIndexByDefaultName('official', person.name);
     const registryPerson = state.peopleRegistry?.find(item => item.name === person.name);
@@ -1888,6 +2360,9 @@ function renderDocument() {
   const documentElement = document.getElementById('dcl-document');
   const reviewed = Boolean(state.reviewed[memorial.id]);
   const dispatched = Boolean(state.dispatched[memorial.id]);
+  const locked = haremExhausted(state);
+  const lockBar = document.getElementById('dcl-harem-lock');
+  if (lockBar) lockBar.hidden = !locked;
   documentElement.className = `dcl-document ${memorial.type} ${state.open ? 'open' : 'closed'} ${reviewed ? 'reviewed' : ''} ${dispatched ? 'dispatched' : ''}`;
   document.getElementById('dcl-document-kind').textContent = memorial.type === 'secret' ? '密折 · 直达御前 · 未经内阁' : '正式题本 · 通政司验封 · 附内阁票拟';
   document.getElementById('dcl-memorial-title').textContent = memorial.title;
@@ -1900,52 +2375,64 @@ function renderDocument() {
   document.getElementById('dcl-vermilion').textContent = state.replies[memorial.id] ?? '';
   const textarea = document.getElementById('dcl-custom-reply');
   textarea.value = state.replies[memorial.id] ?? '';
-  textarea.disabled = dispatched;
+  textarea.disabled = dispatched || locked;
   const foldButton = document.getElementById('dcl-fold-button');
   foldButton.textContent = state.open ? '合卷' : '开折';
   foldButton.setAttribute('aria-expanded', String(state.open));
   const doubtButton = document.getElementById('dcl-doubt-button');
   doubtButton.textContent = state.doubts.includes(memorial.id) ? '已留中' : '留中存疑';
   doubtButton.classList.toggle('active', state.doubts.includes(memorial.id));
-  doubtButton.disabled = dispatched;
-  document.querySelectorAll('#danchenlu-root [data-reply]').forEach(button => button.classList.toggle('selected', button.dataset.reply === textarea.value));
+  doubtButton.disabled = dispatched || locked;
+  document.querySelectorAll('#danchenlu-root [data-reply]').forEach(button => {
+    button.disabled = locked;
+    button.classList.toggle('selected', button.dataset.reply === textarea.value);
+  });
   updateSubmitState();
 }
 
 function updateSubmitState() {
   const state = getState();
+  const locked = haremExhausted(state);
   const reply = document.getElementById('dcl-custom-reply')?.value.trim();
   const button = document.getElementById('dcl-submit');
   if (button) {
-    button.disabled = Boolean(state.dispatched[state.activeId]) || !reply;
-    button.textContent = state.dispatched[state.activeId] ? '已发下' : state.reviewed[state.activeId] ? '更新暂存' : '暂存朱批';
+    button.disabled = locked || Boolean(state.dispatched[state.activeId]) || !reply;
+    button.textContent = locked ? '御案已锁' : state.dispatched[state.activeId] ? '已发下' : state.reviewed[state.activeId] ? '更新暂存' : '暂存朱批';
   }
 }
 
 function renderMapSelection() {
   const state = getState();
-  document.querySelectorAll('#danchenlu-root .dcl-map-node[data-case]').forEach(node => {
-    node.classList.toggle('active', state.phase === 'intro' && node.dataset.case === currentCase(state).id);
-    node.classList.toggle('archived', state.phase === 'freeplay');
-  });
   const frame = document.getElementById('dcl-map-frame');
   if (!frame) return;
-  let host = frame.querySelector('.dcl-map-dynamic-nodes');
+  let host = frame.querySelector('.dcl-map-city-nodes');
   if (!host) {
     host = document.createElement('div');
-    host.className = 'dcl-map-dynamic-nodes';
+    host.className = 'dcl-map-city-nodes';
     frame.append(host);
   }
-  const zoneCounts = new Map();
-  host.innerHTML = state.mapNodes.map((node, index) => {
-    const zoneKey = provinceZoneKey(node.region);
-    const zoneIndex = zoneCounts.get(zoneKey) ?? 0;
-    zoneCounts.set(zoneKey, zoneIndex + 1);
-    const position = node.x !== null && node.x !== undefined && node.y !== null && node.y !== undefined
-      ? { x: node.x, y: node.y }
-      : dynamicNodePosition(node.name, node.region, zoneIndex);
-    const matched = state.phase === 'freeplay' && state.dynamicCase?.memorials?.some(item => item.region === node.region || node.region.includes(item.region));
-    return `<button class="dcl-map-node dynamic ${matched ? 'active' : ''}" data-map-node="${escapeHtml(node.id)}" style="--x:${position.x}%;--y:${position.y}%"><i>${node.severity === '高' ? '急' : node.severity === '中' ? '重' : '缓'}</i><span>${escapeHtml(node.name)}</span><small>${escapeHtml(node.region)}</small></button>`;
+  const memorialsByCity = new Map();
+  (state.memorials ?? []).forEach(item => {
+    const key = item.cityId || CITY_GRID.find(city => (item.region ?? '').includes(city.name))?.id;
+    if (key) memorialsByCity.set(key, (memorialsByCity.get(key) ?? 0) + 1);
+  });
+  const seenCityNames = new Set();
+  const allCities = [
+    ...CITY_GRID.map(city => {
+      seenCityNames.add(city.name);
+      return { id: city.id, name: city.name, region: city.region, x: city.x, y: city.y, severity: '中' };
+    }),
+    ...(state.mapNodes ?? []).filter(node => {
+      if (seenCityNames.has(node.name)) return false;
+      seenCityNames.add(node.name);
+      return true;
+    }),
+  ];
+  host.innerHTML = allCities.map(node => {
+    const count = memorialsByCity.get(node.id) ?? 0;
+    const selected = state.selectedCity === node.id;
+    const severity = count >= 3 ? '重' : count >= 1 ? '中' : '缓';
+    return `<button class="dcl-map-node city ${selected ? 'active' : ''} ${count ? 'has-memorial' : ''}" data-map-node="${escapeHtml(node.id)}" style="--x:${node.x}%;--y:${node.y}%"><i>${severity === '重' ? '急' : severity === '中' ? '重' : '缓'}${count ? `<em>${count}</em>` : ''}</i><span>${escapeHtml(node.name)}</span><small>${escapeHtml(node.region)}${count ? ` · ${count}折` : ''}</small></button>`;
   }).join('');
 }
 
@@ -1977,14 +2464,43 @@ function dynamicNodePosition(name, region, zoneIndex = 0) {
 
 function selectMapNode(nodeId) {
   const state = getState();
-  const node = state.mapNodes.find(item => item.id === nodeId);
-  if (!node || state.phase !== 'freeplay' || !state.dynamicCase) return;
-  const memorial = state.dynamicCase.memorials.find(item => item.region === node.region || node.region.includes(item.region));
-  state.activeId = memorial?.id ?? state.dynamicCase.memorials[0].id;
-  state.view = 'desk';
+  const city = CITY_GRID.find(item => item.id === nodeId)
+    ?? state.mapNodes.find(item => item.id === nodeId);
+  if (!city) return;
+  state.selectedCity = state.selectedCity === city.id ? null : city.id;
+  state.selectedOfficial = null;
+  state.activeId = state.memorials?.[0]?.id ?? null;
+  state.view = 'map';
   state.open = false;
   persistState(state);
   renderAll();
+}
+
+function currentCaseAutoEdges(state) {
+  const memorials = state.memorials?.length ? state.memorials : initialMemorialsFromCases();
+  const byCity = new Map();
+  memorials.forEach(item => {
+    const sender = cleanGeneratedText(item?.sender, 40);
+    if (!sender || sender === '通政司代呈') return;
+    const cityId = item.cityId || CITY_GRID.find(city => (item.region ?? '').includes(city.name))?.id;
+    if (!cityId) return;
+    if (!byCity.has(cityId)) byCity.set(cityId, []);
+    const list = byCity.get(cityId);
+    if (!list.includes(sender)) list.push(sender);
+  });
+  const existing = new Set((state.dynamicEdges ?? []).map(edge => `${edge.a}\u0001${edge.b}`));
+  const edges = [];
+  byCity.forEach(senders => {
+    for (let i = 0; i < senders.length - 1 && edges.length < 40; i += 1) {
+      for (let j = i + 1; j < senders.length && edges.length < 40; j += 1) {
+        const key = `${senders[i]}\u0001${senders[j]}`;
+        const reverse = `${senders[j]}\u0001${senders[i]}`;
+        if (existing.has(key) || existing.has(reverse)) continue;
+        edges.push({ a: senders[i], b: senders[j], type: 'case', label: '同案具折', auto: true });
+      }
+    }
+  });
+  return edges;
 }
 
 function renderNetwork() {
@@ -1996,6 +2512,7 @@ function renderNetwork() {
   const nodes = officialNodeList(state);
   const nodeByRef = new Map(nodes.map(node => [node.ref, node]));
   const nameToRef = new Map(nodes.map(node => [node.name, node.ref]));
+  const autoEdges = currentCaseAutoEdges(state);
   const staticLines = NETWORK_EDGES.map(([a, b, type, label]) => {
     const from = nodeByRef.get(String(a));
     const to = nodeByRef.get(String(b));
@@ -2010,7 +2527,15 @@ function renderNetwork() {
     if (!from || !to) return '';
     return `<line data-edge="${edge.type}" class="${edge.type}" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"><title>${escapeHtml(edge.label)}</title></line>`;
   }).join('');
-  board.innerHTML = `<svg class="dcl-network-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${staticLines}${dynamicLines}</svg>${nodes.map(node => `<button class="dcl-person-node ${node.ref === selectedOfficialRef ? 'selected' : ''} ${node.dynamic ? 'dcl-person-dynamic' : ''}" data-person="${escapeHtml(node.ref)}" data-name="${escapeHtml(node.name)}" style="--x:${node.x}%;--y:${node.y}%">${node.portrait ? `<img src="${resolvePortraitUrl(node.portrait, 'official')}" alt="${escapeHtml(node.name)}画像">` : `<i class="dcl-avatar-letter">${escapeHtml(node.name.slice(0, 1))}</i>`}<span><b>${escapeHtml(node.name)}</b><small>${escapeHtml(node.office)}</small></span></button>`).join('')}`;
+  const autoLines = autoEdges.map(edge => {
+    const fromRef = nameToRef.get(edge.a);
+    const toRef = nameToRef.get(edge.b);
+    const from = fromRef ? nodeByRef.get(fromRef) : null;
+    const to = toRef ? nodeByRef.get(toRef) : null;
+    if (!from || !to) return '';
+    return `<line data-edge="case" class="case" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"><title>${escapeHtml(edge.label)}</title></line>`;
+  }).join('');
+  board.innerHTML = `<svg class="dcl-network-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${staticLines}${dynamicLines}${autoLines}</svg>${nodes.map(node => `<button class="dcl-person-node ${node.ref === selectedOfficialRef ? 'selected' : ''} ${node.dynamic ? 'dcl-person-dynamic' : ''}" data-person="${escapeHtml(node.ref)}" data-name="${escapeHtml(node.name)}" style="--x:${node.x}%;--y:${node.y}%">${node.portrait ? `<img src="${resolvePortraitUrl(node.portrait, 'official')}" alt="${escapeHtml(node.name)}画像">` : `<i class="dcl-avatar-letter">${escapeHtml(node.name.slice(0, 1))}</i>`}<span><b>${escapeHtml(node.name)}</b><small>${escapeHtml(node.office)}</small></span></button>`).join('')}`;
   document.querySelectorAll('#danchenlu-root [data-relation]').forEach(button => button.classList.toggle('active', button.dataset.relation === 'all'));
   selectOfficial(selectedOfficialRef);
 }
@@ -2066,13 +2591,17 @@ function selectOfficial(ref) {
     if (edge.a === node.name) connected.add(nameToRef.get(edge.b) ?? edge.b);
     if (edge.b === node.name) connected.add(nameToRef.get(edge.a) ?? edge.a);
   });
+  currentCaseAutoEdges(state).forEach(edge => {
+    if (edge.a === node.name) connected.add(nameToRef.get(edge.b) ?? edge.b);
+    if (edge.b === node.name) connected.add(nameToRef.get(edge.a) ?? edge.a);
+  });
   document.querySelectorAll('#danchenlu-root .dcl-person-node').forEach((node, nodeIndex) => {
     const nodeRef = node.dataset.person;
     node.classList.toggle('selected', nodeRef === selectedOfficialRef);
     if (networkMode === 'officials') node.classList.toggle('relation-muted', !connected.has(nodeRef));
   });
   if (networkMode === 'officials') document.querySelectorAll('#danchenlu-root .dcl-network-lines line').forEach((line, edgeIndex) => {
-      const lineEdges = [...NETWORK_EDGES, ...(state.dynamicEdges ?? [])];
+      const lineEdges = [...NETWORK_EDGES, ...(state.dynamicEdges ?? []), ...currentCaseAutoEdges(state)];
       const edge = lineEdges[edgeIndex];
       if (!edge) return;
       const aRef = typeof edge[0] === 'number' ? String(edge[0]) : nameToRef.get(edge.a) ?? edge.a;
@@ -2084,15 +2613,22 @@ function selectOfficial(ref) {
     const other = profileAt('official', edge[0] === staticIndex ? edge[1] : edge[0], state);
     return `<li><i class="${edge[2]}"></i><b>${escapeHtml(other.name)}</b><span>${escapeHtml(edge[3])}</span></li>`;
   }).join('');
-  const dynamicTies = (state.dynamicEdges ?? []).filter(edge => edge.a === node.name || edge.b === node.name).map(edge => {
+  const dynamicTies = (state.dynamicEdges ?? []).map((edge, edgeIndex) => {
+    if (edge.a !== node.name && edge.b !== node.name) return '';
     const otherName = edge.a === node.name ? edge.b : edge.a;
-    return `<li><i class="${edge.type}"></i><b>${escapeHtml(otherName)}</b><span>${escapeHtml(edge.label)}</span></li>`;
+    return `<li><i class="${edge.type}"></i><b>${escapeHtml(otherName)}</b><span>${escapeHtml(edge.label)}</span><button type="button" class="dcl-edge-remove" data-remove-edge="${edgeIndex}" title="解除关系">×</button></li>`;
   }).join('');
+  const autoTies = currentCaseAutoEdges(state).filter(edge => edge.a === node.name || edge.b === node.name).map(edge => {
+    const otherName = edge.a === node.name ? edge.b : edge.a;
+    return `<li><i class="case"></i><b>${escapeHtml(otherName)}</b><span>同案具折</span></li>`;
+  }).join('');
+  const relationRows = ties + dynamicTies + autoTies;
+  const relationList = `<div class="dcl-dossier-title"><h3>官场关系</h3><button data-add-edge="${escapeHtml(node.name)}">登记关系</button></div><ul>${relationRows || '<li><span>暂无已登记关系</span></li>'}</ul>`;
   if (staticIndex === null) {
     const dynamicPerson = state.peopleRegistry.find(item => item.name === node.name);
     if (dynamicPerson) {
       const dynamicAvatar = dynamicPerson.portrait ? `<img src="${resolvePortraitUrl(dynamicPerson.portrait, dynamicPerson.kind === 'harem' ? 'harem' : dynamicPerson.kind === 'family' ? 'family' : 'official')}" alt="${escapeHtml(dynamicPerson.name)}">` : `<i class="dcl-avatar-letter large">${escapeHtml(dynamicPerson.name.slice(0, 1))}</i>`;
-      document.getElementById('dcl-official-dossier').innerHTML = `<div class="dcl-dossier-portrait dcl-family-portrait">${dynamicAvatar}</div><small>${escapeHtml(dynamicPerson.rank)} · ${escapeHtml(dynamicPerson.faction)}</small><h2>${escapeHtml(dynamicPerson.name)}</h2><b>${escapeHtml(dynamicPerson.office)}</b><dl><dt>籍贯</dt><dd>${escapeHtml(dynamicPerson.origin || '待考')}</dd><dt>出身</dt><dd>${escapeHtml(dynamicPerson.role || '待考')}</dd><dt>朝野风评</dt><dd>${escapeHtml(dynamicPerson.reputation || '风评未显')}</dd><dt>首见</dt><dd>第${chineseDay(dynamicPerson.firstSeenDay)}日</dd><dt>最近</dt><dd>第${chineseDay(dynamicPerson.lastSeenDay)}日</dd></dl><p class="dcl-reputation-note">风评是朝野眼中的形象，不等于其真实品格与作为。</p><h3>外在行事</h3><p>${escapeHtml(dynamicPerson.publicFace || '言行由官职与处境推导。')}</p><h3>内在矛盾</h3><p>${escapeHtml(dynamicPerson.core || '公开立场与实际自保之间存在张力。')}</p><h3>所求与所惧</h3><p>${escapeHtml(dynamicPerson.motive || '')} ${escapeHtml(dynamicPerson.fear || '')}</p><h3>信息边界</h3><p>${escapeHtml(dynamicPerson.knows)}</p><small>说话方式：${escapeHtml(dynamicPerson.voice)}</small><h3>官场关系</h3><ul>${dynamicTies || '<li><span>暂无已登记关系</span></li>'}</ul>`;
+      document.getElementById('dcl-official-dossier').innerHTML = `<div class="dcl-dossier-portrait dcl-family-portrait">${dynamicAvatar}</div><small>${escapeHtml(dynamicPerson.rank)} · ${escapeHtml(dynamicPerson.faction)}</small><h2>${escapeHtml(dynamicPerson.name)}</h2><b>${escapeHtml(dynamicPerson.office)}</b><dl><dt>籍贯</dt><dd>${escapeHtml(dynamicPerson.origin || '待考')}</dd><dt>出身</dt><dd>${escapeHtml(dynamicPerson.role || '待考')}</dd><dt>朝野风评</dt><dd>${escapeHtml(dynamicPerson.reputation || '风评未显')}</dd><dt>首见</dt><dd>第${chineseDay(dynamicPerson.firstSeenDay)}日</dd><dt>最近</dt><dd>第${chineseDay(dynamicPerson.lastSeenDay)}日</dd></dl><p class="dcl-reputation-note">风评是朝野眼中的形象，不等于其真实品格与作为。</p><h3>外在行事</h3><p>${escapeHtml(dynamicPerson.publicFace || '言行由官职与处境推导。')}</p><h3>内在矛盾</h3><p>${escapeHtml(dynamicPerson.core || '公开立场与实际自保之间存在张力。')}</p><h3>所求与所惧</h3><p>${escapeHtml(dynamicPerson.motive || '')} ${escapeHtml(dynamicPerson.fear || '')}</p><h3>信息边界</h3><p>${escapeHtml(dynamicPerson.knows)}</p><small>说话方式：${escapeHtml(dynamicPerson.voice)}</small>${relationList}${egoNetworkHtml(state, node)}`;
       return;
     }
   }
@@ -2100,7 +2636,248 @@ function selectOfficial(ref) {
   if (!person) return;
   const family = profilesOf('family', state).map((member, familyIndex) => ({ member, familyIndex })).filter(item => item.member.official === staticIndex);
   const familyCards = family.map(({ member, familyIndex }) => `<button class="dcl-family-chip" data-family-member="${familyIndex}" data-name="${escapeHtml(member.name)}"><img src="${resolvePortraitUrl(member.portrait, 'family')}" alt="${escapeHtml(member.name)}"><span><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.relation)} · ${escapeHtml(member.role)}</small></span></button>`).join('');
-  document.getElementById('dcl-official-dossier').innerHTML = `<div class="dcl-dossier-portrait"><img src="${resolvePortraitUrl(person.portrait, 'official')}" alt="${escapeHtml(person.name)}"></div><small>${escapeHtml(person.rank)} · ${escapeHtml(person.faction)}</small><h2>${escapeHtml(person.name)}</h2><b>${escapeHtml(person.office)}</b><dl><dt>籍贯</dt><dd>${escapeHtml(person.origin)}</dd><dt>入仕</dt><dd>${escapeHtml(person.exam)}</dd><dt>朝野风评</dt><dd>${escapeHtml(person.reputation ?? '风评未显')}</dd></dl><p class="dcl-reputation-note">风评是朝野眼中的形象，不等于其真实品格与作为。</p><div class="dcl-dossier-title"><h3>内宅关系</h3><button data-open-family="${staticIndex}">展开家眷图</button></div><div class="dcl-family-list">${familyCards}</div><h3>官场关系</h3><ul>${ties}${dynamicTies}</ul>`;
+  document.getElementById('dcl-official-dossier').innerHTML = `<div class="dcl-dossier-portrait"><img src="${resolvePortraitUrl(person.portrait, 'official')}" alt="${escapeHtml(person.name)}"></div><small>${escapeHtml(person.rank)} · ${escapeHtml(person.faction)}</small><h2>${escapeHtml(person.name)}</h2><b>${escapeHtml(person.office)}</b><dl><dt>籍贯</dt><dd>${escapeHtml(person.origin)}</dd><dt>入仕</dt><dd>${escapeHtml(person.exam)}</dd><dt>朝野风评</dt><dd>${escapeHtml(person.reputation ?? '风评未显')}</dd></dl><p class="dcl-reputation-note">风评是朝野眼中的形象，不等于其真实品格与作为。</p><h3>内宅关系</h3><div class="dcl-family-list">${familyCards}</div>${relationList}${egoNetworkHtml(state, node)}`;
+}
+
+function renderOfficials() {
+  const root = document.getElementById('danchenlu-root');
+  if (root) root.dataset.officialsDetail = rosterDetail ? '1' : '0';
+  document.querySelectorAll('#danchenlu-root [data-roster-kind]').forEach(button => button.classList.toggle('active', button.dataset.rosterKind === rosterKind));
+  const rosterBoard = document.getElementById('dcl-roster-board');
+  const detail = document.getElementById('dcl-official-detail');
+  if (!rosterBoard || !detail) return;
+  rosterBoard.hidden = rosterDetail;
+  detail.hidden = !rosterDetail;
+  if (rosterDetail) {
+    const node = officialNodeList(getState()).find(item => item.ref === selectedOfficialRef);
+    document.getElementById('dcl-official-detail-title').textContent = node ? `${node.name} · 档案` : '官员档案';
+    selectOfficial(selectedOfficialRef);
+    return;
+  }
+  renderRoster();
+}
+
+function setRosterKind(kind) {
+  if (!['rank', 'civil', 'central'].includes(kind)) return;
+  rosterKind = kind;
+  renderRoster();
+}
+
+function selectRosterPerson(ref) {
+  selectedOfficialRef = String(ref);
+  rosterDetail = true;
+  renderOfficials();
+}
+
+function rosterPersonInfo(node) {
+  const state = getState();
+  if (node.staticIndex !== null && node.staticIndex !== undefined) {
+    const person = profileAt('official', node.staticIndex, state);
+    return { office: person.office, rank: person.rank, faction: person.faction, portrait: person.portrait };
+  }
+  const person = state.peopleRegistry?.find(item => item.name === node.name);
+  return {
+    office: person?.office || node.office,
+    rank: person?.rank || '品秩待核',
+    faction: person?.faction || '未定',
+    portrait: person?.portrait || node.portrait || '',
+  };
+}
+
+function rankGroupKey(rank) {
+  const match = String(rank ?? '').match(/^([正从])([一二三四五六七八九])品$/);
+  if (!match) return { key: '9.z', label: '品秩待核' };
+  const order = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 }[match[2]];
+  return { key: `${order}.${match[1] === '正' ? 'a' : 'b'}`, label: `${match[1]}${match[2]}品` };
+}
+
+function civilMilitaryGroup(office) {
+  const text = String(office ?? '');
+  return /将军|总兵|参将|副将|都司|守备|游击|都统|提督|都护|兵马|武职|军门|都督/.test(text) ? { key: 'military', label: '武将' } : { key: 'civil', label: '文臣' };
+}
+
+function centralLocalGroup(office) {
+  const text = String(office ?? '');
+  if (/巡按|巡盐|巡漕|巡边|总督|巡抚|布政|按察|提学|道员|知府|知州|知县|知事|通判|同知|判官|主簿|驿丞|府尹|州判/.test(text)) return { key: 'local', label: '地方' };
+  if (/内阁|尚书|侍郎|御史|都察院|大理寺|太常寺|光禄寺|鸿胪寺|翰林院|国子监|钦天监|通政司|詹事府|太医院|宗人府|内务府|兵马司|给事中|中书|部务|寺卿|监正/.test(text)) return { key: 'central', label: '中央' };
+  return { key: 'local', label: '地方' };
+}
+
+function rosterGroupKeyOf(node, kind) {
+  const info = rosterPersonInfo(node);
+  if (kind === 'civil') return civilMilitaryGroup(info.office);
+  if (kind === 'central') return centralLocalGroup(info.office);
+  return rankGroupKey(info.rank);
+}
+
+function renderRoster() {
+  const board = document.getElementById('dcl-roster-board');
+  if (!board) return;
+  const state = getState();
+  const nodes = officialNodeList(state);
+  const groups = new Map();
+  nodes.forEach(node => {
+    const group = rosterGroupKeyOf(node, rosterKind);
+    if (!groups.has(group.key)) groups.set(group.key, { label: group.label, nodes: [] });
+    groups.get(group.key).nodes.push(node);
+  });
+  const order = [...groups.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  board.innerHTML = order.map(([key, group]) => {
+    return `<section class="dcl-roster-group" data-roster-group="${escapeHtml(key)}"><h2>${escapeHtml(group.label)}<small>${group.nodes.length} 人</small></h2><div class="dcl-roster-grid">${group.nodes.map(node => {
+      const info = rosterPersonInfo(node);
+      const avatar = resolvePortraitUrl(info.portrait, 'official');
+      return `<button class="dcl-roster-row ${node.ref === selectedOfficialRef ? 'selected' : ''}" data-roster-person="${escapeHtml(node.ref)}" data-name="${escapeHtml(node.name)}"><img src="${avatar}" alt="${escapeHtml(node.name)}立绘" onerror="this.style.visibility='hidden'"><span><b>${escapeHtml(node.name)}</b><small>${escapeHtml(info.office)}</small></span><em>${escapeHtml(info.rank)} · ${escapeHtml(info.faction)}</em></button>`;
+    }).join('')}</div></section>`;
+  }).join('') || '<p class="dcl-roster-empty">暂无官员登记</p>';
+  applyOfficialSearch();
+}
+
+function applyOfficialSearch(value = '') {
+  const query = String(value ?? '').trim();
+  const root = document.getElementById('danchenlu-root');
+  if (!root) return;
+  root.querySelectorAll('.dcl-roster-row').forEach(row => row.classList.toggle('search-muted', Boolean(query) && !row.dataset.name.includes(query)));
+  root.querySelectorAll('.dcl-roster-group').forEach(group => {
+    const visible = [...group.querySelectorAll('.dcl-roster-row')].some(row => !row.classList.contains('search-muted'));
+    group.classList.toggle('search-muted', Boolean(query) && !visible);
+  });
+}
+
+function openEdgeDialog(name) {
+  const state = getState();
+  const nodes = officialNodeList(state).filter(node => node.name !== name);
+  edgeTargetName = name;
+  document.getElementById('dcl-edge-dialog-title').textContent = `登记关系 · ${name}`;
+  const targetSelect = document.getElementById('dcl-edge-target');
+  targetSelect.innerHTML = nodes.map(node => `<option value="${escapeHtml(node.name)}">${escapeHtml(node.name)}（${escapeHtml(node.office)}）</option>`).join('');
+  const typeSelect = document.getElementById('dcl-edge-type');
+  typeSelect.innerHTML = [...EDGE_TYPES].map(type => `<option value="${type}">${EDGE_LABELS[type] ?? type}</option>`).join('');
+  document.getElementById('dcl-edge-label').value = '';
+  document.getElementById('dcl-edge-dialog')?.showModal();
+}
+
+function closeEdgeDialog() {
+  document.getElementById('dcl-edge-dialog')?.close();
+  edgeTargetName = '';
+}
+
+function saveEdge() {
+  const state = getState();
+  const a = edgeTargetName;
+  const b = document.getElementById('dcl-edge-target')?.value;
+  const type = document.getElementById('dcl-edge-type')?.value || 'cohort';
+  const label = String(document.getElementById('dcl-edge-label')?.value ?? '').trim().slice(0, 60) || (EDGE_LABELS[type] ?? '新结关系');
+  if (!a || !b || a === b) {
+    toast('请选择一位不同的官员');
+    return;
+  }
+  const duplicate = (state.dynamicEdges ?? []).some(edge => (edge.a === a && edge.b === b) || (edge.a === b && edge.b === a));
+  if (duplicate) {
+    toast('两人之间已登记过关系');
+    return;
+  }
+  state.dynamicEdges = normalizeDynamicEdges([...(state.dynamicEdges ?? []), { a, b, type, label, day: state.day }], state.day);
+  persistState(state);
+  closeEdgeDialog();
+  if (getState().view === 'officials') renderOfficials(); else renderAll();
+  toast('关系已登记');
+}
+
+function removeDynamicEdge(index) {
+  const state = getState();
+  const edge = state.dynamicEdges?.[index];
+  if (!edge) return;
+  state.dynamicEdges.splice(index, 1);
+  state.dynamicEdges = normalizeDynamicEdges(state.dynamicEdges, state.day);
+  persistState(state);
+  if (getState().view === 'officials') renderOfficials(); else renderAll();
+  toast(`已解除 ${edge.a}—${edge.b} 的关系`);
+}
+
+function egoNetworkData(state, node) {
+  const nodes = officialNodeList(state);
+  const nameToRef = new Map(nodes.map(item => [item.name, item.ref]));
+  const byName = new Map();
+  const staticIndex = node.staticIndex !== null && node.staticIndex !== undefined ? node.staticIndex : null;
+  if (staticIndex !== null) {
+    NETWORK_EDGES.forEach(([a, b, type, label]) => {
+      if (a !== staticIndex && b !== staticIndex) return;
+      const otherIndex = a === staticIndex ? b : a;
+      const other = profileAt('official', otherIndex, state);
+      if (!other) return;
+      byName.set(other.name, { name: other.name, ref: String(otherIndex), type, label, kind: 'official' });
+    });
+    profilesOf('family', state).forEach((member, familyIndex) => {
+      if (member.official !== staticIndex) return;
+      const type = member.relation.includes('女') ? 'daughter' : member.relation === '正妻' ? 'spouse' : 'concubine';
+      byName.set(member.name, { name: member.name, ref: null, familyIndex, type, label: member.relation, kind: 'family' });
+    });
+  }
+  (state.dynamicEdges ?? []).forEach(edge => {
+    if (edge.a !== node.name && edge.b !== node.name) return;
+    const otherName = edge.a === node.name ? edge.b : edge.a;
+    if (byName.has(otherName)) return;
+    byName.set(otherName, { name: otherName, ref: nameToRef.get(otherName) ?? null, type: edge.type, label: edge.label, kind: 'official' });
+  });
+  currentCaseAutoEdges(state).forEach(edge => {
+    if (edge.a !== node.name && edge.b !== node.name) return;
+    const otherName = edge.a === node.name ? edge.b : edge.a;
+    if (byName.has(otherName)) return;
+    byName.set(otherName, { name: otherName, ref: nameToRef.get(otherName) ?? null, type: 'case', label: '同案具折', kind: 'official' });
+  });
+  return [...byName.values()];
+}
+
+function egoNetworkHtml(state, node) {
+  const connections = egoNetworkData(state, node);
+  if (!connections.length) {
+    return '<div class="dcl-ego-network"><h3>关系网</h3><div class="dcl-ego-board"><p class="dcl-ego-empty">暂无登记关系，可点击“登记关系”添加。</p></div></div>';
+  }
+  const nodes = officialNodeList(state);
+  const cx = 50;
+  const cy = 50;
+  const radius = 29;
+  const shown = connections.slice(0, 12);
+  const angleStep = (Math.PI * 2) / shown.length;
+  const lines = shown.map((conn, index) => {
+    const angle = angleStep * index - Math.PI / 2;
+    const x = Math.min(89, Math.max(11, cx + Math.cos(angle) * radius));
+    const y = Math.min(86, Math.max(14, cy + Math.sin(angle) * radius));
+    return `<line data-edge="${conn.type}" class="${conn.type}" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"><title>${escapeHtml(conn.label)}</title></line>`;
+  }).join('');
+  const personNodes = shown.map((conn, index) => {
+    const angle = angleStep * index - Math.PI / 2;
+    const x = Math.min(89, Math.max(11, cx + Math.cos(angle) * radius));
+    const y = Math.min(86, Math.max(14, cy + Math.sin(angle) * radius));
+    const attr = conn.kind === 'family'
+      ? `data-ego-family="${conn.familyIndex}"`
+      : (conn.ref ? `data-ego-ref="${escapeHtml(conn.ref)}"` : '');
+    const person = conn.kind === 'family'
+      ? profileAt('family', conn.familyIndex, state)
+      : (conn.ref ? rosterPersonInfo(nodes.find(item => item.ref === conn.ref)) : null);
+    const portrait = person?.portrait ?? '';
+    const office = conn.kind === 'family' ? (person?.relation ?? '家眷') : (person?.office ?? conn.label);
+    const avatar = portrait
+      ? `<img src="${resolvePortraitUrl(portrait, conn.kind === 'family' ? 'family' : 'official')}" alt="${escapeHtml(conn.name)}画像">`
+      : `<i class="dcl-avatar-letter">${escapeHtml(conn.name.slice(0, 1))}</i>`;
+    return `<button class="dcl-person-node dcl-ego-person ${conn.kind}" data-name="${escapeHtml(conn.name)}" ${attr} style="--x:${x.toFixed(1)}%;--y:${y.toFixed(1)}%">${avatar}<span><b>${escapeHtml(conn.name)}</b><small>${escapeHtml(office)}</small></span></button>`;
+  }).join('');
+  const centerPortrait = node.dynamic
+    ? (state.peopleRegistry?.find(person => person.name === node.name)?.portrait ?? '')
+    : (profileAt('official', node.staticIndex, state)?.portrait ?? '');
+  const centerAvatar = centerPortrait
+    ? `<img src="${resolvePortraitUrl(centerPortrait, 'official')}" alt="${escapeHtml(node.name)}画像">`
+    : `<i class="dcl-avatar-letter">${escapeHtml(node.name.slice(0, 1))}</i>`;
+  return `<div class="dcl-ego-network"><h3>关系网</h3><div class="dcl-ego-board"><svg class="dcl-network-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines}</svg><div class="dcl-person-node dcl-ego-center-node selected" data-name="${escapeHtml(node.name)}" style="--x:${cx}%;--y:${cy}%">${centerAvatar}<span><b>${escapeHtml(node.name)}</b><small>${escapeHtml(node.office)}</small></span></div>${personNodes}</div><div class="dcl-ego-legend"><span><i class="patron"></i>荐举</span><span><i class="cohort"></i>同年</span><span><i class="kin"></i>姻亲</span><span><i class="hostile"></i>攻讦</span><span><i class="spouse"></i>家眷</span><span><i class="case"></i>同案</span></div>${connections.length > shown.length ? `<p class="dcl-ego-more">另有 ${connections.length - shown.length} 条关系未展开，见下方“官场关系”列表。</p>` : ''}</div>`;
+}
+
+function selectFamilyMemberDossier(familyIndex) {
+  const state = getState();
+  const member = profileAt('family', familyIndex, state);
+  const official = member ? profileAt('official', member.official, state) : null;
+  if (!member || !official) return;
+  const crossTies = (member.connections ?? []).map(tie => `<li><i class="kin"></i><b>${escapeHtml(profileAt('official', tie.official, state)?.name ?? '?')}</b><span>${escapeHtml(tie.label)}</span></li>`).join('');
+  document.getElementById('dcl-official-dossier').innerHTML = `<div class="dcl-dossier-portrait dcl-family-portrait"><img src="${resolvePortraitUrl(member.portrait, 'family')}" alt="${escapeHtml(member.name)}"></div><small>成年家眷 · ${escapeHtml(member.relation)}</small><h2>${escapeHtml(member.name)}</h2><b>${escapeHtml(member.role)}</b><dl><dt>年龄</dt><dd>${member.age}岁</dd><dt>出身</dt><dd>${escapeHtml(member.origin)}</dd><dt>关系</dt><dd>${escapeHtml(official.name)}之${escapeHtml(member.relation)}</dd><dt>立场</dt><dd>独立判断</dd></dl><h3>所求与所惧</h3><p class="dcl-family-motive">${escapeHtml(member.motive)}</p><h3>直接关系</h3><ul><li><i class="${member.relation.includes('女') ? 'daughter' : 'spouse'}"></i><b>${escapeHtml(official.name)}</b><span>${escapeHtml(member.relation)}</span></li>${crossTies}</ul><button type="button" class="dcl-back-official" data-back-official="1">← 返回 ${escapeHtml(official.name)} 的档案</button>`;
 }
 
 function renderFamilyNetwork(officialIndex = selectedOfficialIndex, selectedFamilyIndex = null) {
@@ -2455,7 +3232,9 @@ function selectConsort(consortId) {
 }
 
 function haremActionLabel(type) {
-  return type === 'dine' ? '同席用膳' : '召见问话';
+  if (type === 'summon') return '点名同房';
+  if (type === 'visit') return '临幸宫殿';
+  return '同席用膳';
 }
 
 function renderHarem() {
@@ -2472,22 +3251,25 @@ function renderHarem() {
   const dossier = document.getElementById('dcl-harem-dossier');
   if (!roster || !overview || !dossier || !member) return;
 
-  const todayCount = state.harem.log.filter(item => item.day === state.day).length;
+  const todayCount = haremDailyCount(state);
+  const exhausted = todayCount >= HAREM_DAILY_LIMIT;
+  const remaining = Math.max(0, HAREM_DAILY_LIMIT - todayCount);
   const latest = state.harem.log.at(-1);
   const latestMember = latest ? haremMembers.find(item => item.id === latest.consortId) : null;
   const latestLabel = latestMember ? `第${chineseDay(latest.day)}日 · ${escapeHtml(latestMember.rank ?? '')}${escapeHtml(latestMember.name)} · ${haremActionLabel(latest.type)}` : '尚无记录';
   overview.innerHTML = `
     <span><small>宫册在位</small><b>${haremMembers.length} 人</b></span>
-    <span><small>今日召见</small><b>${todayCount} 次</b></span>
+    <span class="${exhausted ? 'exhausted' : ''}"><small>今日宠幸</small><b>${todayCount}/${HAREM_DAILY_LIMIT}${exhausted ? ' · 已满' : ` · 余 ${remaining}`}</b></span>
     <span><small>最近宫务</small><b>${latestLabel}</b></span>
-    <em>次数只记宫务事实，不等同爱意、忠诚或人物全部性格</em>`;
+    <em>点名同房与临幸每日合计两次；宠幸满两次后御案锁定，当日不可再批阅奏折。</em>`;
 
   roster.innerHTML = haremMembers.map(item => {
     const record = visitRecord(state, item.id);
-    const visit = record.lastDay ? `第${chineseDay(record.lastDay)}日 · ${haremActionLabel(record.lastType)}` : '尚未召见';
+    const actedToday = haremActedToday(state, item.id);
+    const visit = actedToday ? `今日 · ${haremActionLabel(state.harem.log.find(entry => entry.day === state.day && entry.consortId === item.id)?.type)}` : (record.lastDay ? `第${chineseDay(record.lastDay)}日 · ${haremActionLabel(record.lastType)}` : '尚未召见');
     return `<button class="dcl-consort-card ${item.id === member.id ? 'selected' : ''}" data-consort="${escapeHtml(item.id)}" aria-pressed="${item.id === member.id}">
       <img src="${resolvePortraitUrl(item.portrait, 'harem')}" alt="${escapeHtml(item.rank)}${escapeHtml(item.name)}画像">
-      <span><i>${escapeHtml(item.rank ?? '宫人')}</i><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.palace ?? '待定宫居')} · ${escapeHtml(item.standing ?? (item.kind === 'harem' ? '新涉宫人' : '在册'))}</small><em>${escapeHtml(visit)}</em></span>
+      <span><i>${escapeHtml(item.rank ?? '宫人')}</i><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.palace ?? '待定宫居')} · ${escapeHtml(item.standing ?? (item.kind === 'harem' ? '新涉宫人' : '在册'))}</small><em>${escapeHtml(visit)}${actedToday ? ' · 今夜已承宠' : ''}</em></span>
     </button>`;
   }).join('');
 
@@ -2497,25 +3279,34 @@ function renderHarem() {
   const memberStanding = member.standing ?? (member.kind === 'harem' ? '新涉宫人' : '在册');
   const memberOrigin = member.origin ?? '';
   const memberDuty = member.duty ?? member.role ?? '';
+  const actedToday = haremActedToday(state, member.id);
   dossier.innerHTML = `
     <div class="dcl-harem-feature"><img src="${resolvePortraitUrl(member.portrait, 'harem')}" alt="${escapeHtml(member.name)}画像"><span><i>${escapeHtml(memberRank)}</i><b>${escapeHtml(member.name)}</b><small>${escapeHtml(memberPalace)}</small></span></div>
     <section class="dcl-harem-register"><small>${escapeHtml(memberStanding)} · ${member.age ?? '？'}岁</small><h2>${escapeHtml(memberRank)} · ${escapeHtml(member.name)}</h2><b>${escapeHtml(memberOrigin)}</b>
-      <dl><dt>宫居</dt><dd>${escapeHtml(memberPalace)}</dd><dt>所掌</dt><dd>${escapeHtml(memberDuty)}</dd><dt>召见</dt><dd>${record.count} 次${record.lastDay ? ` · 最近第${chineseDay(record.lastDay)}日` : ''}</dd><dt>知情</dt><dd>${escapeHtml(member.knows)}</dd></dl>
+      <dl><dt>宫居</dt><dd>${escapeHtml(memberPalace)}</dd><dt>所掌</dt><dd>${escapeHtml(memberDuty)}</dd><dt>承宠</dt><dd>${record.count} 次${record.lastDay ? ` · 最近第${chineseDay(record.lastDay)}日` : ''}</dd><dt>知情</dt><dd>${escapeHtml(member.knows)}</dd></dl>
     </section>
     <section class="dcl-harem-character"><h3>仪态与行事</h3><p>${escapeHtml(member.publicFace)}</p><h3>内在矛盾</h3><p>${escapeHtml(member.core)}</p><h3>所求与所惧</h3><p>${escapeHtml(member.motive)} ${escapeHtml(member.fear)}</p><small>说话方式：${escapeHtml(member.voice)}</small></section>
-    <aside class="dcl-harem-actions"><small>御前传召</small><h3>召见 ${escapeHtml(memberRank)}${escapeHtml(member.name)}</h3><p>传召会写入聊天并触发一次生成；人物只依据亲见、公开宫务与御前明确告知的内容回应。</p><button class="dcl-primary" data-harem-action="summon">召见问话</button><button data-harem-action="dine">同席用膳</button></aside>`;
+    <aside class="dcl-harem-actions"><small>每日宫务</small><h3>${escapeHtml(memberRank)}${escapeHtml(member.name)}</h3><button class="dcl-primary" data-harem-action="summon" ${actedToday || exhausted ? 'disabled' : ''}>点名同房</button><button data-harem-action="visit" ${actedToday || exhausted ? 'disabled' : ''}>临幸宫殿</button>${actedToday ? '<small class="dcl-harem-acted-note">今夜已承宠，明日再传。</small>' : ''}</aside>`;
 }
 
 async function runHaremAction(type) {
-  if (!['summon', 'dine'].includes(type)) return;
+  if (!['summon', 'visit'].includes(type)) return;
   const state = getState();
   const member = selectedConsort(state);
   if (!member) return;
-  const actionText = type === 'dine'
-    ? `传旨：今夜往${member.palace}，与${member.rank}${member.name}同席用膳。`
-    : `传${member.rank}${member.name}至养心殿，朕要召见问话。`;
-  const message = `${actionText}\n请从传旨、候见或入殿的可观察过程开始，依${member.name}的身份、信息边界和当前关系自然回应。不要把召见次数当作爱意或忠诚，不要替朕指定谈话内容，也不要让她无端知晓密折。`;
-  await sendUserAction(message, () => {
+  if (haremExhausted(state)) {
+    toast('今日已宠幸两次，御案锁定，明日再来。');
+    return;
+  }
+  if (haremActedToday(state, member.id)) {
+    toast(`${member.rank}${member.name}今夜已承宠，明日再传。`);
+    return;
+  }
+  const actionText = type === 'visit'
+    ? `传旨：今夜朕起驾往${member.palace}，临幸${member.rank}${member.name}。`
+    : `传旨：今夜召${member.rank}${member.name}至养心殿，点名同房侍寝。`;
+  const instruction = `请从传旨、接驾、入殿或入宫的可观察过程开始，依${member.name}的身份、信息边界和当前关系自然回应；同房情节按预设尺度推进。点名与临幸是具体事件，不代表自动倾心，也不要把宠幸次数当作爱意或忠诚；不要替朕指定谈话内容，也不要让她无端知晓密折。`;
+  await sendUserAction(actionText, () => {
     const committed = getState();
     const prior = visitRecord(committed, member.id);
     committed.harem.visits[member.id] = {
@@ -2528,7 +3319,7 @@ async function runHaremAction(type) {
     committed.harem.selectedId = member.id;
     persistState(committed);
     renderAll();
-  }, `本轮相关后妃档案：\n${formatHaremProfile(member)}`);
+  }, `本轮相关后妃档案：\n${formatHaremProfile(member)}`, instruction);
 }
 
 function openManageDialog() {
@@ -2722,11 +3513,18 @@ function openFactionDetail(factionId) {
   if (!faction) return;
   const staticNames = new Set(OFFICIALS.map(person => person.name));
   const registryNames = new Set((state.peopleRegistry ?? []).map(person => person.name));
+  const casualties = new Set(state.casualties?.officials ?? []);
   let members = faction.members ?? [];
   if (faction.static) {
     members = OFFICIALS.filter(person => person.faction === faction.name).map(person => person.name);
   } else {
     members = members.filter(name => staticNames.has(name) || registryNames.has(name));
+  }
+  if (faction.name !== '未定') {
+    const registryRoster = (state.peopleRegistry ?? [])
+      .filter(person => (person.kind === 'official' || person.kind === 'case') && !casualties.has(person.name) && person.faction === faction.name)
+      .map(person => person.name);
+    members = [...new Set([...members, ...registryRoster])];
   }
   const membersDetail = members.length
     ? members.map(name => {
@@ -2761,30 +3559,19 @@ function closeFactionDetail() {
 
 function renderArchive() {
   const state = getState();
-  const prior = state.history.map((item, index) => {
-    const stats = item.stats ?? {};
+  const archived = state.archive.map((item, index) => {
     return `<article class="dcl-archive-card clickable" data-archive="prior-${index}" tabindex="0">
-      <small>第${escapeHtml(item.day)}日 · 已封匣</small><h2>${escapeHtml(item.caseTitle)}</h2>
-      <p>${escapeHtml(item.summary ?? '')}</p><b>已阅 ${escapeHtml(item.reviewed)} · 留中 ${escapeHtml(item.doubts)} · 威望 ${escapeHtml(stats.authority)}</b>
+      <small>第${escapeHtml(item.day)}日 · ${escapeHtml(MEMORIAL_CATEGORIES[item.category]?.label ?? '奏折')} · ${escapeHtml(item.region)}</small><h2>${escapeHtml(item.title)}</h2>
+      <p>${escapeHtml(item.lead ?? '')}</p><b>朱批：${escapeHtml(item.reply ?? '—')}</b>
       <div class="dcl-archive-detail">
-        <h3>简要说明</h3>
-        <p>${escapeHtml(item.summary ?? '')}</p>
-        <dl><dt>案卷编号</dt><dd>${escapeHtml(item.caseId ?? '—')}</dd><dt>已发下</dt><dd>${escapeHtml(item.reviewed)} 道</dd><dt>留中存疑</dt><dd>${escapeHtml(item.doubts)} 道</dd><dt>结案朝局</dt><dd>威望 ${escapeHtml(stats.authority)} · 国帑 ${escapeHtml(stats.treasury)} · 民心 ${escapeHtml(stats.stability)}</dd></dl>
+        <h3>奏折原文</h3>
+        <p>${(Array.isArray(item.body) ? item.body : [item.body]).map(part => escapeHtml(stripMarkup(part))).join('<br><br>')}</p>
+        <dl><dt>具折人</dt><dd>${escapeHtml(item.sender)}（${escapeHtml(item.office)}）</dd><dt>递送</dt><dd>${escapeHtml(item.date)} · ${escapeHtml(item.time)}</dd><dt>朱批</dt><dd>${escapeHtml(item.reply ?? '—')}</dd><dt>御批日期</dt><dd>第${escapeHtml(item.dispatchedDay)}日${item.doubted ? ' · 留中存疑' : ''}</dd></dl>
       </div>
     </article>`;
-  });
-  const reference = CASES.map((item, index) => `
-    <article class="dcl-archive-card clickable" data-archive="ref-${index}" tabindex="0">
-      <small>引子卷 ${index + 1}</small><h2>${escapeHtml(item.title)}</h2>
-      <p>${escapeHtml(item.summary)}</p><b>点击查看案卷说明</b>
-      <div class="dcl-archive-detail">
-        <h3>案卷说明</h3>
-        <p>${escapeHtml(item.summary)}</p>
-        ${item.rumor ? `<p>朝野传闻：${escapeHtml(item.rumor)}</p>` : ''}
-        ${item.clues?.length ? `<h4>待查矛盾</h4><ul>${item.clues.map(clue => `<li>${escapeHtml(clue)}</li>`).join('')}</ul>` : ''}
-      </div>
-    </article>`);
-  document.getElementById('dcl-archive-board').innerHTML = [...prior, ...reference].join('');
+  }).join('');
+  const empty = '<p class="dcl-archive-empty">案牍中尚无已批阅奏折。批阅并在“御批汇总”发送后，奏折会归档于此。</p>';
+  document.getElementById('dcl-archive-board').innerHTML = archived || empty;
 }
 
 function toggleArchive(card) {
@@ -2838,6 +3625,8 @@ function buildStatePrompt() {
   const pending = caseItem.memorials.filter(item => !state.dispatched[item.id]).map(item => item.title).join('、') || '无';
   const consort = selectedConsort(state);
   const visit = visitRecord(state, consort.id);
+  const haremToday = haremDailyCount(state);
+  const haremRemaining = Math.max(0, HAREM_DAILY_LIMIT - haremToday);
   const inactiveHarem = new Set([...(state.casualties?.harem ?? []), ...(state.harem?.removed ?? [])]);
   const haremRoster = profilesOf('harem', state).filter(item => !inactiveHarem.has(item.name)).map(item => `${item.rank}${item.name}（${item.palace}）`).join('；');
   const dynamicRoster = (state.peopleRegistry ?? []).filter(item => item.kind === 'harem' && !inactiveHarem.has(item.name)).map(item => `${item.rank}${item.name}（${item.palace}）`).join('；');
@@ -2852,35 +3641,41 @@ function buildStatePrompt() {
     .map(faction => `${faction.name}${faction.static ? '' : '（新起）'}${faction.influence}%`)
     .join('、');
   const dynamicEdgeCount = state.dynamicEdges?.length ?? 0;
+  const dynamicEdgeLine = (state.dynamicEdges ?? []).slice(0, 8)
+    .map(edge => {
+      const typeLabel = EDGE_LABELS[edge.type] ?? edge.type;
+      return `${edge.a}—${edge.b}（${typeLabel}${edge.label && edge.label !== typeLabel ? `·${edge.label}` : ''}）`;
+    })
+    .join('、');
   const statSemantics = statBandSemantics(state.stats);
   const invasionLine = invasionContextLine(state);
   const haremContext = state.view === 'harem' ? `
 当前正在处理后宫宫务。
+今日宠幸：${haremToday}/${HAREM_DAILY_LIMIT}（点名同房或临幸合计），剩余 ${haremRemaining} 次；宠幸满两次后御案锁定，当日不可再批阅奏折，就寝进入次日后重新计算。
 当前人物：${consort.rank}${consort.name}，${consort.age ?? '？'}岁，居${consort.palace ?? '待定宫居'}。${consort.publicFace}${consort.core}
 她所求：${consort.motive} 她所惧：${consort.fear}
 她实际可能知道：${consort.knows} 说话方式：${consort.voice}
-宫务记录：共召见${visit.count}次${visit.lastDay ? `，最近为第${visit.lastDay}日${haremActionLabel(visit.lastType)}` : '，此前尚未召见'}。次数只是客观记录，不代表爱意、忠诚、嫉妒或人格阶段。
-后宫叙事约束：五位妃嫔都是有独立利益与信息边界的成年人物；位份约束礼制和宫权，不预设善恶；不因一次召见自动倾心，不因他人受召自动争宠；任何关系升温、裂痕或结盟都须由正文事件自然过渡。
+宫务记录：共承宠${visit.count}次${visit.lastDay ? `，最近为第${visit.lastDay}日${haremActionLabel(visit.lastType)}` : '，此前尚未承宠'}。次数只是客观记录，不代表爱意、忠诚、嫉妒或人格阶段。
+后宫叙事约束：五位妃嫔都是有独立利益与信息边界的成年人物；位份约束礼制和宫权，不预设善恶；不因一次点名或临幸自动倾心，不因他人受宠自动争宠；任何关系升温、裂痕或结盟都须由正文事件自然过渡。
 ` : '';
   return `<danchenlu_runtime>
-当前是丹宸录奏折模拟器的第${state.day}日，阶段为${state.phase === 'freeplay' ? '开放朝政；后续奏折由你依据旧案后果持续创作，不得复位或循环前三卷' : '前三卷玩法引子'}。玩家身份为大晟皇帝，拥有最终裁断权；你负责扮演朝堂、官员、文书与后果，不替玩家决定。
+当前是丹宸录奏折模拟器的第${state.day}日。御案始终保有${MEMORIAL_QUOTA}本待批奏折，奏折按来源城市分布在大晟十道（每道两城：${CITY_GRID.map(city => city.name).join('、')}）。奏折分报告、检举、请功、日常、奉承、进献等类型，各有不同官员与题材；批阅发送后奏折归档入案牍，通政司随即补足新折。玩家身份为大晟皇帝，拥有最终裁断权；你负责扮演朝堂、官员、文书与后果，不替玩家决定。
 朝局数值：${statSemantics}
 党派影响（0—100，高影响力不等于正确）：${factionLine}。
-当前案件：${caseItem.title}。公开摘要：${caseItem.summary}
-幕后事实（只用于保持因果一致，除非玩家查得证据或日结，不可直接揭底）：${caseItem.contradiction}
-当前奏折：${memorial.title}；${memorial.sender}（${memorial.office}）；${memorial.region}；${memorial.type === 'secret' ? '密折，未经内阁' : `题本，票拟为：${memorial.cabinet ?? '无'}`}。
+当前御案（${(state.memorials ?? []).length} 本待批）：${(state.memorials ?? []).map(item => `${item.title}（${MEMORIAL_CATEGORIES[item.category]?.label ?? '报告'}·${item.region}·${item.sender}）`).join('；') || '无'}。
+当前奏折：${memorial.title}；类型为${MEMORIAL_CATEGORIES[memorial.category]?.label ?? '报告'}；${memorial.sender}（${memorial.office}）；${memorial.region}；${memorial.type === 'secret' ? '密折，未经内阁' : `题本，票拟为：${memorial.cabinet ?? '无'}`}。
 奏折正文：${memorial.body.map(stripMarkup).join('')}
-已经发下并生效的朱批：${dispatched}
-尚未发下：${pending}
+已暂存待发送的朱批：${state.reviewed ? Object.keys(state.reviewed).filter(id => (state.memorials ?? []).some(m => m.id === id)).map(id => `${(state.memorials.find(m => m.id === id)?.title ?? id)}→${state.replies[id]}`).join('；') || '无' : '无'}
 留中存疑：${state.doubts.map(id => caseItem.memorials.find(item => item.id === id)?.title).filter(Boolean).join('、') || '无'}
 后宫名册：${fullHaremRoster}。位份决定礼制，不直接决定善恶或忠诚。
-${recentPeople ? `近期新涉或活跃人物：${recentPeople}。` : ''}${dynamicEdgeCount ? `已登记动态关系 ${dynamicEdgeCount} 条，涉及新旧人物；关系变化以正文事件为准，不得凭空否认或滥用。` : ''}
+${recentPeople ? `近期新涉或活跃人物：${recentPeople}。` : ''}${dynamicEdgeCount ? `已登记动态关系 ${dynamicEdgeCount} 条：${dynamicEdgeLine}。关系变化以正文事件为准，不得凭空否认或滥用。` : ''}
 ${invasionLine ? `${invasionLine}\n` : ''}
 ${haremContext}
 叙事约束：每次回应先承接玩家最新行为，再呈现可观察后果；官员有利益、信息盲区和自保逻辑；不把所有冲突简化成忠奸二分；不输出变量代码、状态标签或操作教程；结尾保留一个可行动钩子，但不强迫选择。
 世界登记（仅在本轮剧情确实引入了新人物、新关系、新党派或新地点时才附带，其余情况绝不输出）：在回复末尾追加一行
 <dcl_world_change>{"people":[{"name":"姓名","kind":"official","office":"官职","rank":"品秩","faction":"党派","origin":"籍贯","role":"身份职责","reputation":"朝野风评","publicFace":"外在行事","core":"内在矛盾","motive":"动机","fear":"所惧","knows":"信息边界","voice":"说话方式"}],"relations":[{"a":"人名甲","b":"人名乙","type":"patron","label":"关系说明"}],"factions":[{"name":"党名","description":"主张","members":["人名"],"influence":30}],"nodes":[{"name":"地点或衙门","region":"道府","severity":"中"}]}</dcl_world_change>
 该标签只用于御案登记，不进入剧情正文；已有默认档案的十二官员不必重复登记。
+新人物必须同时给出至少一条relations（与既有官员的同僚、上下级、同案具折或同地为官等），不得留空。
 </danchenlu_runtime>`;
 }
 
